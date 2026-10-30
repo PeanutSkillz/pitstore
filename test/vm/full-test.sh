@@ -24,6 +24,14 @@ as_user() {
         PITSTORE_TEST_USER="$user" PITSTORE_TEST_PASSWORD_FILE="/home/$user/.test-password" "$@"
 }
 step() { echo; echo "=== $*"; }
+# Cockpit stops its web service instance shortly after the last browser of a
+# test has gone; a login in that moment is disconnected. Wait for it first.
+settle() {
+    for _ in $(seq 60); do
+        systemctl list-units --state=active --no-legend 'cockpit-wsinstance-https@*.service' | grep -q . || return 0
+        sleep 1
+    done
+}
 
 export PITSTORE_TEST_USER=pitstore-test PITSTORE_TEST_PASSWORD_FILE=/root/pitstore-test.pw
 step "baseline before installing"
@@ -69,6 +77,7 @@ REQUEST
 chmod 0644 /tmp/dash.json
 as_user pitstore-test /usr/share/cockpit/pitstore/helper/pitstore-helper install < /tmp/dash.json | tail -1
 install -d -o pitstore-test "$out/dashboard"
+settle
 (cd "$out/dashboard" && as_user pitstore-test python3 "$tests/test/browser/dashboard.py" "$out/dashboard" org.pitstore.dashtest)
 echo '{"scope": "user", "backend": "podman", "appId": "org.pitstore.dashtest", "deleteData": true}' |
     as_user pitstore-test /usr/share/cockpit/pitstore/helper/pitstore-helper remove | tail -1
@@ -78,15 +87,18 @@ for backend in podman-user podman-system docker; do
     [ "$backend" = podman-user ] || user=pitstore-admin
     step "life cycle through the UI: $backend as $user"
     install -d -o "$user" "$out/$backend"
+    settle
     (cd "$out/$backend" && as_user "$user" python3 "$tests/test/browser/lifecycle.py" "$out/$backend" --backend "$backend")
 done
 
 step "settings dialog from the dashboard: change the port, remove with data (rootless Podman)"
 install -d -o pitstore-test "$out/settings"
+settle
 (cd "$out/settings" && as_user pitstore-test python3 "$tests/test/browser/settings.py" "$out/settings")
 
 step "take over other apps through the UI: docker as pitstore-admin"
 install -d -o pitstore-admin "$out/adopt"
+settle
 (cd "$out/adopt" && as_user pitstore-admin python3 "$tests/test/browser/adopt.py" "$out/adopt")
 # clean up: the recreated app through PitStore, the released container directly
 echo '{"scope": "system", "backend": "docker", "appId": "local.demo", "deleteData": false}' |
