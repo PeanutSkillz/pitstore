@@ -56,9 +56,12 @@ sudo apt update
 sudo apt install pitstore
 ```
 
-Before you trust the key, check that its fingerprint matches the one in the
-release notes on GitHub:
-`gpg --show-keys /etc/apt/keyrings/pitstore.asc`.
+Before you trust the key, check its fingerprint with
+`gpg --show-keys /etc/apt/keyrings/pitstore.asc`. It must be
+
+    83E5 1216 2375 2CF6 CBF7  F00F 6489 F3EF C0DF 9D6E
+
+(also in the release notes and in `.github/pitstore.asc` of the repository).
 
 Afterwards, log in to Cockpit (`https://<server>:9090`). **Dashboard** and
 **Appstore** appear in the menu.
