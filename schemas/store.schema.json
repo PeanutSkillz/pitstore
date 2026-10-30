@@ -1,0 +1,28 @@
+{
+  "$id": "store",
+  "description": "store.json of a CasaOS AppStore protocol v2 store (docs/specs/store-config.md)",
+  "type": "object",
+  "required": ["version", "store_id", "name"],
+  "properties": {
+    "version": { "const": 2 },
+    "store_id": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "name": { "$ref": "#/$defs/text" },
+    "description": { "$ref": "#/$defs/text" },
+    "maintainer": { "type": "string", "maxLength": 200 },
+    "url": { "type": "string", "maxLength": 2048 },
+    "icon": { "type": "string", "maxLength": 2048 }
+  },
+  "$defs": {
+    "text": {
+      "anyOf": [
+        { "type": "string", "maxLength": 2000 },
+        {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": { "pattern": "^[a-z]{2}_[A-Z]{2}$" },
+          "additionalProperties": { "type": "string", "maxLength": 2000 }
+        }
+      ]
+    }
+  }
+}

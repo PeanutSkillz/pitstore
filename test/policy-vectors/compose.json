@@ -1,0 +1,902 @@
+[
+ {
+  "description": "clean app",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "ports": [
+      "8080:80"
+     ],
+     "restart": "unless-stopped",
+     "network_mode": "bridge",
+     "environment": {
+      "TZ": "UTC"
+     }
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": []
+ },
+ {
+  "description": "privileged true is blocked",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "privileged": true
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/privileged"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "privileged false is fine",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "privileged": false
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": []
+ },
+ {
+  "description": "privileged as a string is unsupported",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "privileged": "true"
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "services.web.privileged"
+  ]
+ },
+ {
+  "description": "host network",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "network_mode": "host"
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/net-host"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "host pid and ipc",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "pid": "host",
+     "ipc": "host"
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/ipc-host",
+   "web/pid-host"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "other host namespaces",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "uts": "host",
+     "userns_mode": "host",
+     "cgroup": "host"
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/ns-host:cgroup",
+   "web/ns-host:userns_mode",
+   "web/ns-host:uts"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "cap_add is blocked per capability",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "cap_add": [
+      "NET_ADMIN",
+      "cap_sys_admin"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/cap-add:NET_ADMIN",
+   "web/cap-add:SYS_ADMIN"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "cap_drop is fine",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "cap_drop": [
+      "ALL"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": []
+ },
+ {
+  "description": "devices are blocked",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "devices": [
+      "/dev/dri:/dev/dri",
+      "/dev/../dev/ttyUSB0"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/device:/dev/dri",
+   "web/device:/dev/ttyUSB0"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "no-new-privileges is the only allowed security_opt",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "security_opt": [
+      "no-new-privileges:true",
+      "apparmor:unconfined",
+      "seccomp:unconfined"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/security-opt:apparmor:unconfined",
+   "web/security-opt:seccomp:unconfined"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "runtime sockets",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "volumes": [
+      "/var/run/docker.sock:/var/run/docker.sock",
+      {
+       "type": "bind",
+       "source": "/run/podman/podman.sock",
+       "target": "/s"
+      },
+      "/run/user/1000/podman/podman.sock:/x:ro",
+      "/run/containerd/containerd.sock:/c"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/mount-runtime-socket:/run/containerd/containerd.sock",
+   "web/mount-runtime-socket:/run/podman/podman.sock",
+   "web/mount-runtime-socket:/run/user/1000/podman/podman.sock",
+   "web/mount-runtime-socket:/var/run/docker.sock"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "sensitive host paths, normalized",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "volumes": [
+      "/:/host",
+      "/etc:/etc:ro",
+      "//etc/../etc/:/e",
+      "/root/.ssh:/ssh",
+      "/var/run:/var/run",
+      "/var:/v",
+      "/proc/1:/p",
+      "/var/lib/docker/volumes:/dv",
+      "/sys/fs/cgroup:/cg",
+      "/boot:/b",
+      "/dev:/dev"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/mount-sensitive:/",
+   "web/mount-sensitive:/boot",
+   "web/mount-sensitive:/dev",
+   "web/mount-sensitive:/etc",
+   "web/mount-sensitive:/proc/1",
+   "web/mount-sensitive:/root/.ssh",
+   "web/mount-sensitive:/sys/fs/cgroup",
+   "web/mount-sensitive:/var",
+   "web/mount-sensitive:/var/lib/docker/volumes",
+   "web/mount-sensitive:/var/run"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "traversal into a sensitive path",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "volumes": [
+      "/DATA/AppData/demo/../../../etc:/x"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/mount-sensitive:/etc"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "lookalike paths are fine",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "volumes": [
+      "/etcetera:/a",
+      "/srv/run:/b",
+      "/DATA/AppData/demo/etc:/c",
+      "/home/user/root:/d"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": []
+ },
+ {
+  "description": "ordinary data mounts are fine",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "volumes": [
+      "/DATA/AppData/demo/config:/config",
+      "/DATA/Media:/media:ro",
+      "data:/data",
+      "/cache",
+      {
+       "type": "volume",
+       "source": "db",
+       "target": "/db"
+      },
+      {
+       "type": "tmpfs",
+       "target": "/tmp"
+      }
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   },
+   "volumes": {
+    "data": null,
+    "db": {}
+   }
+  },
+  "findings": [],
+  "unsupported": []
+ },
+ {
+  "description": "relative bind mounts are unsupported",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "volumes": [
+      "./data:/data",
+      "~/x:/x"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "services.web.volumes"
+  ]
+ },
+ {
+  "description": "invalid volume entries are unsupported",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "volumes": [
+      "a:b:c:d",
+      {
+       "type": "npipe",
+       "source": "x",
+       "target": "/y"
+      }
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "services.web.volumes"
+  ]
+ },
+ {
+  "description": "volume driver options can hide a bind mount",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "volumes": [
+      "data:/data"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   },
+   "volumes": {
+    "data": {
+     "driver": "local",
+     "driver_opts": {
+      "type": "none",
+      "o": "bind",
+      "device": "/etc"
+     }
+    }
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "volumes.data.driver",
+   "volumes.data.driver_opts"
+  ]
+ },
+ {
+  "description": "unsupported top-level and service keys",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "build": ".",
+     "env_file": ".env",
+     "foo": 1,
+     "secrets": [
+      "s"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   },
+   "configs": {
+    "c": {
+     "file": "x"
+    }
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "configs",
+   "services.web.build",
+   "services.web.env_file",
+   "services.web.foo",
+   "services.web.secrets"
+  ]
+ },
+ {
+  "description": "kernel sysctls are blocked, network sysctls are fine",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "sysctls": {
+      "net.ipv4.ip_forward": 1,
+      "kernel.shm_rmid_forced": 1
+     }
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/sysctl:kernel.shm_rmid_forced"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "sysctls in list form",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "sysctls": [
+      "net.core.somaxconn=1024",
+      "vm.overcommit_memory=1"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/sysctl:vm.overcommit_memory"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "GPU reservations are unsupported",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "deploy": {
+      "resources": {
+       "reservations": {
+        "memory": "64M",
+        "devices": [
+         {
+          "driver": "nvidia",
+          "capabilities": [
+           "gpu"
+          ]
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "services.web.deploy.resources.reservations.devices"
+  ]
+ },
+ {
+  "description": "deploy keys other than resources are unsupported",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "deploy": {
+      "replicas": 2,
+      "resources": {
+       "limits": {
+        "cpus": "0.5",
+        "memory": "1G"
+       }
+      }
+     }
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "services.web.deploy.replicas"
+  ]
+ },
+ {
+  "description": "network_mode of another container is unsupported",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "network_mode": "service:db"
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "services.web.network_mode"
+  ]
+ },
+ {
+  "description": "networks must be defined and plain bridges",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "networks": [
+      "front",
+      "missing"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   },
+   "networks": {
+    "front": {
+     "driver": "bridge"
+    },
+    "ext": {
+     "external": true
+    }
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "networks.ext.external",
+   "services.web.networks"
+  ]
+ },
+ {
+  "description": "default network reference is fine",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "networks": [
+      "default"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": []
+ },
+ {
+  "description": "remote log drivers are unsupported",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "logging": {
+      "driver": "syslog",
+      "options": {
+       "syslog-address": "udp://1.2.3.4:514"
+      }
+     }
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "services.web.logging"
+  ]
+ },
+ {
+  "description": "local log driver is fine",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "logging": {
+      "driver": "json-file",
+      "options": {
+       "max-size": "10m"
+      }
+     }
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": []
+ },
+ {
+  "description": "alternative runtimes are unsupported",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "runtime": "nvidia"
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "services.web.runtime"
+  ]
+ },
+ {
+  "description": "findings are reported per service",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx"
+    },
+    "db": {
+     "image": "postgres",
+     "privileged": true,
+     "cap_add": [
+      "SYS_ADMIN"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "db/cap-add:SYS_ADMIN",
+   "db/privileged"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "duplicate findings are reported once",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx:1.27",
+     "devices": [
+      "/dev/dri:/dev/dri",
+      "/dev/dri:/dev/dri2"
+     ],
+     "cap_add": [
+      "NET_RAW",
+      "CAP_NET_RAW"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/cap-add:NET_RAW",
+   "web/device:/dev/dri"
+  ],
+  "unsupported": []
+ },
+ {
+  "description": "internal bridge networks are fine",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx",
+     "networks": [
+      "inner"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   },
+   "networks": {
+    "inner": {
+     "driver": "bridge",
+     "internal": true
+    }
+   }
+  },
+  "findings": [],
+  "unsupported": []
+ },
+ {
+  "description": "internal must be a boolean",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx"
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   },
+   "networks": {
+    "inner": {
+     "internal": "yes"
+    }
+   }
+  },
+  "findings": [],
+  "unsupported": [
+   "networks.inner.internal"
+  ]
+ }
+]

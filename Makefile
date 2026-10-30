@@ -47,6 +47,7 @@ check: $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP)
 	npm run stylelint
 	npm run typecheck
 	npm test
+	npm run test:helper
 
 clean:
 	rm -rf dist/
@@ -80,6 +81,7 @@ deb: export NODE_ENV=production
 deb:
 	rm -rf dist/ $(DIST_TEST)
 	$(MAKE) $(DIST_TEST)
+	node test/check-bundle.js
 	dpkg-buildpackage -b -us -uc
 	lintian --fail-on error,warning ../$(PACKAGE_NAME)_$(VERSION)_all.deb
 

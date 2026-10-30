@@ -11,19 +11,22 @@ import process from 'node:process';
 
 import esbuild from 'esbuild';
 
+import { generateValidators } from '../schemas/generate.js';
+
 const outdir = 'node_modules/.cache/pitstore-unit';
 const tests = fs.readdirSync('test/unit')
         .filter(f => f.endsWith('.test.ts'))
         .map(f => path.join('test/unit', f));
 
+generateValidators('src/lib/catalog/validators.gen.js');
 fs.rmSync(outdir, { recursive: true, force: true });
 await esbuild.build({
     entryPoints: tests,
     bundle: true,
     platform: 'node',
-    format: 'esm',
+    format: 'cjs',
     outdir,
-    outExtension: { '.js': '.mjs' },
+    outExtension: { '.js': '.cjs' },
     nodePaths: ['pkg/lib'],
     external: ['qunit'],
     logLevel: 'warning',

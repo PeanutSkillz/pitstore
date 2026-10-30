@@ -78,7 +78,12 @@
         "react/jsx-no-useless-fragment": "error",
         "react/prop-types": "off",
         "space-before-function-paren": "off",
-        "standard/no-callback-literal": "off"
+        "standard/no-callback-literal": "off",
+        "react/no-danger": "error",
+        "no-eval": "error",
+        "no-implied-eval": "error",
+        "no-new-func": "error",
+        "no-script-url": "error"
     },
     "globals": {
         "require": "readonly",
@@ -103,6 +108,15 @@
                     "./tsconfig.json",
                     "./test/tsconfig.json"
                 ]
+            }
+        },
+        {
+            "files": [
+                "test/unit/**"
+            ],
+            "rules": {
+                "no-script-url": "off",
+                "no-template-curly-in-string": "off"
             }
         }
     ]

@@ -21,6 +21,9 @@ from webdriver_bidi import ChromiumBidi  # noqa: E402
 
 BASE = "https://localhost:9090"
 PAGES = {"dashboard": "Dashboard", "appstore": "Appstore"}
+# a catalog app without risky options and one with privileged: true
+CLEAN_APP = "org.icewhale.2fauth"
+RISKY_APP = "org.icewhale.homeassistant"
 
 
 async def run_js(browser, code, *args):
@@ -46,11 +49,16 @@ async def wait_js(browser, code, timeout=60):
     raise TimeoutError(f"condition not met: {code} (screenshot in timeout.png)")
 
 
+async def save_shot(browser, path):
+    shot = await browser.bidi("browsingContext.captureScreenshot", context=browser.top_context)
+    path.write_bytes(base64.b64decode(shot["data"]))
+
+
 async def main(outdir):
     outdir.mkdir(parents=True, exist_ok=True)
     async with ChromiumBidi(headless=True) as browser:
         await browser.bidi("browsingContext.setViewport", context=browser.top_context,
-                           viewport={"width": 1280, "height": 800})
+                           viewport={"width": 1280, "height": 900})
         await browser.bidi("browsingContext.navigate", context=browser.top_context,
                            url=f"{BASE}/", wait="complete")
         # login.js attaches its handlers only once the form is shown
@@ -87,10 +95,36 @@ async def main(outdir):
                 if label not in (menu or "").split("|"):
                     failures.append(f"menu entry {label} missing")
             await asyncio.sleep(1)  # let fonts and icons settle
-            shot = await browser.bidi("browsingContext.captureScreenshot", context=browser.top_context)
-            path = outdir / f"{page}.png"
-            path.write_bytes(base64.b64decode(shot["data"]))
-            print(f"ok   {page}: heading '{title}' rendered, saved {path}")
+            await save_shot(browser, outdir / f"{page}.png")
+            print(f"ok   {page}: heading '{title}' rendered")
+
+        # Appstore with the live catalog, loaded through the bridge
+        await browser.switch_to_frame("cockpit1:localhost/pitstore/appstore")
+        await wait_js(browser, "() => document.querySelectorAll('.pitstore-app-card').length > 50", timeout=120)
+        count = await run_js(browser, "() => String(document.querySelectorAll('.pitstore-app-card').length)")
+        await wait_js(browser, "() => document.querySelectorAll('img.pitstore-app-icon[src^=\"data:image/\"]').length > 10",
+                      timeout=120)
+        print(f"ok   appstore: {count} app cards, icons shown as data: URLs")
+        await save_shot(browser, outdir / "appstore-catalog.png")
+
+        for app_id, expected in ((CLEAN_APP, "No risky options found"),
+                                 (RISKY_APP, "This app asks for risky permissions")):
+            await browser.switch_to_frame("cockpit1:localhost/pitstore/appstore")
+            await run_js(browser, """(id) => {
+                const card = document.getElementById('app-' + id);
+                card.querySelector('input, button').click();
+                return true;
+            }""", app_id)
+            await wait_js(browser, f"() => document.body.innerText.includes({expected!r})", timeout=60)
+            await asyncio.sleep(2)  # screenshots in the dialog
+            print(f"ok   details of {app_id}: '{expected}'")
+            await save_shot(browser, outdir / f"details-{app_id}.png")
+            await run_js(browser, """() => {
+                [...document.querySelectorAll('.pf-v6-c-modal-box button')]
+                    .find(b => b.textContent === 'Close').click();
+                return true;
+            }""")
+            await wait_js(browser, "() => !document.querySelector('.pf-v6-c-modal-box')")
 
         errors = [str(m) for m in browser.logs if m.level == "error"]
         for e in errors:

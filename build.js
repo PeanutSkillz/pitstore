@@ -13,6 +13,8 @@ import { cockpitRsyncEsbuildPlugin } from './pkg/lib/cockpit-rsync-plugin.js';
 import { cleanPlugin } from './pkg/lib/esbuild-cleanup-plugin.js';
 import { cockpitCompressPlugin } from './pkg/lib/esbuild-compress-plugin.js';
 
+import { generateValidators } from './schemas/generate.js';
+
 const useWasm = os.arch() !== 'x64';
 
 const esbuild = await (async () => {
@@ -40,6 +42,9 @@ const pages = ['dashboard', 'appstore'];
 
 // Obtain package name from package.json
 const packageJson = JSON.parse(fs.readFileSync('package.json'));
+
+// JSON schema validators are compiled ahead of time (no eval under Cockpit's CSP)
+generateValidators('src/lib/catalog/validators.gen.js');
 
 const parser = (await import('argparse')).default.ArgumentParser();
 /* eslint-disable max-len */

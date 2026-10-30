@@ -1,0 +1,30 @@
+{
+  "$id": "meta",
+  "description": "apps/<id>/meta.json of a CasaOS AppStore protocol v2 store (docs/specs/build-output.md)",
+  "type": "object",
+  "properties": {
+    "tagline": { "type": "string", "maxLength": 500 },
+    "description": { "type": "string", "maxLength": 65536 },
+    "thumbnail": { "$ref": "#/$defs/store_path" },
+    "screenshot_link": { "type": "array", "maxItems": 10, "items": { "$ref": "#/$defs/store_path" } },
+    "tips": {
+      "type": "object",
+      "maxProperties": 8,
+      "additionalProperties": { "type": "string", "maxLength": 4000 }
+    },
+    "author": { "type": "string", "maxLength": 200 },
+    "developer": { "type": "string", "maxLength": 200 },
+    "category": { "type": "string", "maxLength": 64 },
+    "architectures": { "type": "array", "maxItems": 16, "items": { "type": "string", "maxLength": 16 } },
+    "version": { "type": "string", "maxLength": 64 },
+    "update_at": { "type": "string", "maxLength": 64 },
+    "release_note": { "type": "string", "maxLength": 16384 },
+    "website": { "type": "string", "maxLength": 2048 },
+    "repo": { "type": "string", "maxLength": 2048 },
+    "support": { "type": "string", "maxLength": 2048 },
+    "docs": { "type": "string", "maxLength": 2048 }
+  },
+  "$defs": {
+    "store_path": { "type": "string", "maxLength": 512, "pattern": "^/apps/[a-z0-9._-]+/[A-Za-z0-9._/-]+$" }
+  }
+}

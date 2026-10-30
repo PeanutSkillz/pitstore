@@ -73,7 +73,11 @@ session and bridge, Podman by default and Docker optional.
 
 Built from starter-kit: React 18, PatternFly 6, TypeScript, esbuild, the
 Cockpit `pkg/lib` helpers pulled at a pinned commit by the starter-kit
-Makefile. `manifest.json` registers two entries under `tools` (menu
+Makefile. JSON schemas (`schemas/*.schema.json`) are compiled to plain
+validator functions at build time with Ajv's standalone mode
+(`schemas/generate.js`), because Ajv's normal runtime compilation uses
+`new Function`, which the CSP forbids; `test/check-bundle.js` fails the
+build if a bundle contains `eval` or `new Function`. `manifest.json` registers two entries under `tools` (menu
 "Tools" section), labelled **Dashboard** and **Appstore**, each with its own
 HTML entry point (`dashboard.html`, `appstore.html`). No existing Cockpit
 page is replaced, and no `content-security-policy` override is set in the
@@ -126,7 +130,6 @@ open question Q1.
 | Data | Rootless Podman | System Podman / Docker | Contents |
 |---|---|---|---|
 | Catalog cache | `~/.cache/pitstore/catalog/` | same (per Cockpit user) | `index.json`, `store.json`, per-app `meta.json` + compose, keyed by `content_hash` |
-| Icon cache | `~/.cache/pitstore/icons/` | same | validated PNG/JPEG/WebP/SVG bytes, keyed by SHA-256 |
 | Settings | `~/.config/pitstore/settings.json` | same | store URL, preferred backend, locale |
 | App state | `~/.local/share/pitstore/apps/<id>/` | `/var/lib/pitstore/apps/<id>/` | `plan.json` (the applied plan), `confirmations.json`, `secrets.env` (mode 0600) |
 | App data | `~/.local/share/pitstore/data/<id>/` | `/var/lib/pitstore/data/<id>/` (configurable data root) | bind-mount sources |
@@ -239,6 +242,17 @@ supports in v2. The values below come from the CasaOS-AppManagement code,
 which still consumes the **v1** zip (`app-management.conf.sample`).
 PitStore treats both as best effort and documents them.
 
+Checked against the live catalog on 2026-10-30 (180 apps): all entries pass
+the schemas and all built Compose files parse. Observed deviations from the
+spec that PitStore accepts: `thumbnail: ""` (87 apps), missing `version`
+(3), missing `x-casaos.main` for single-service apps (8; the only service is
+used), `port_map: ""` or missing (5; the app has no web UI), `index: null`
+(1) and `scheme: ""` (2; treated as http). Variables outside the CasaOS set
+(for example `$OPENAI_ACCESS_TOKEN`) are values the user must provide; they
+become install-time inputs. Policy result: 126 apps clean, 39 with blocked
+options that need confirmation, 15 unsupported (GPU reservations, alternative
+runtimes, Compose configs/profiles, `group_add`, network `ipam`).
+
 ### 4.2 Supported Compose subset
 
 PitStore does not run `docker compose` or `podman-compose`: no shell,
@@ -309,15 +323,16 @@ catalog cache, the plan stored for display, logs or helper stderr.
    Otherwise the SVG is rejected and a placeholder icon is used. (`data:`
    SVG in `<img>` cannot run script in browsers anyway. The filter is
    defense in depth.)
-3. The validated bytes are cached at `~/.cache/pitstore/icons/<sha256>`, and
-   then rendered as a `data:<type>;base64,…` URL.
+3. The validated bytes are rendered as a `data:<type>;base64,…` URL and kept
+   in memory for the session (`src/lib/catalog/catalog.ts`). Every new
+   session fetches and validates again; nothing unvalidated is ever stored.
 
 Screenshots use the same path, but are fetched only when the detail view
 opens.
 
 ## 6. Security policy (compose filter)
 
-Implemented twice from one spec, `schemas/policy.json`:
+Implemented twice, with the shared vectors in `test/policy-vectors/compose.json` as the spec:
 `src/lib/policy.ts` (UI preview) and `helper/pitstore/policy.py`
 (authoritative). Each finding has a stable id, a severity and a fixed
 English warning text.

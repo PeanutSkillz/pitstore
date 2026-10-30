@@ -14,7 +14,7 @@ declare module 'qunit' {
         notOk(value: unknown, message?: string): void;
         equal(actual: unknown, expected: unknown, message?: string): void;
         deepEqual(actual: unknown, expected: unknown, message?: string): void;
-        throws(block: () => void, expected?: RegExp, message?: string): void;
+        throws(block: () => void, expected?: RegExp | (new (...args: never[]) => Error), message?: string): void;
     }
     interface QUnitStatic {
         module(name: string, callback: () => void): void;

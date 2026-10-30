@@ -1,0 +1,13 @@
+{
+  "$id": "index",
+  "description": "index.json of a CasaOS AppStore protocol v2 store (docs/specs/build-output.md); apps are validated one by one with index-app",
+  "type": "object",
+  "required": ["version", "apps"],
+  "properties": {
+    "version": { "const": 2 },
+    "updated_at": { "type": "string", "maxLength": 64 },
+    "app_count": { "type": "integer", "minimum": 0 },
+    "base_url": { "type": "string", "maxLength": 2048 },
+    "apps": { "type": "array", "maxItems": 5000, "items": { "type": "object" } }
+  }
+}

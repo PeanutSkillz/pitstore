@@ -1,2 +1,62 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 @use "page.scss";
+
+.pitstore-app-icon {
+    flex: none;
+    object-fit: contain;
+    border-radius: var(--pf-t--global--border--radius--small);
+}
+
+.pitstore-app-icon-placeholder {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--pf-t--global--icon--color--subtle);
+    background: var(--pf-t--global--background--color--secondary--default);
+}
+
+.pitstore-app-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--pf-t--global--spacer--md);
+}
+
+.pitstore-app-card-tagline {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    min-height: 2.8em;
+}
+
+.pitstore-screenshots {
+    display: flex;
+    gap: var(--pf-t--global--spacer--md);
+    overflow-x: auto;
+    margin-block-end: var(--pf-t--global--spacer--md);
+
+    img {
+        max-height: 220px;
+        border-radius: var(--pf-t--global--border--radius--small);
+    }
+}
+
+.pitstore-markdown p,
+.pitstore-links,
+.pitstore-markdown ul,
+.pitstore-tagline {
+    margin-block-end: var(--pf-t--global--spacer--md);
+}
+
+.pitstore-markdown ul {
+    padding-inline-start: var(--pf-t--global--spacer--lg);
+    list-style: disc;
+}
+
+.pitstore-section-title {
+    margin-block: var(--pf-t--global--spacer--lg) var(--pf-t--global--spacer--md);
+}
+
+.pitstore-compose-summary {
+    margin-block-start: var(--pf-t--global--spacer--md);
+}

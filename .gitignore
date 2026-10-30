@@ -22,3 +22,4 @@ __pycache__/
 
 # subdirs (/subdir/...)
 /test/common/
+/src/lib/catalog/validators.gen.js
