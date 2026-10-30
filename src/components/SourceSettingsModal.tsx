@@ -47,7 +47,7 @@ export const SourceSettingsModal = ({ settings, onClose, onSaved }: {
                         <FormHelperText>
                             <HelperText>
                                 <HelperTextItem variant={error ? 'error' : 'default'}>
-                                    {error ?? _("An https:// address that serves store.json and index.json (CasaOS AppStore protocol v2). The catalog is fetched by the server, not by your browser.")}
+                                    {error ?? _("An https:// address that serves store.json and index.json (app catalog protocol v2). The catalog is fetched by the server, not by your browser.")}
                                 </HelperTextItem>
                             </HelperText>
                         </FormHelperText>

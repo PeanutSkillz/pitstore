@@ -203,7 +203,11 @@ containers. Data directories and `secrets.json` are kept.
 
 The helper stops and removes the containers and network with the app label.
 Data is kept by default. Deleting data is an explicit, separate checkbox,
-and only paths under the app's own data dir are ever deleted.
+and only paths under the app's own data dir are ever deleted. With rootless
+Podman a container may have created files owned by the user's sub-uids (for
+example a database running as uid 999); the user can delete those only in
+its own user namespace, so the helper then runs
+`podman unshare rm -rf --one-file-system -- <app data dir>` (fixed argv).
 
 ### 3.5 Dashboard
 

@@ -22,6 +22,7 @@ import shutil
 import signal
 import socket
 import string
+import subprocess
 import sys
 
 from . import adopt, policy
@@ -67,6 +68,30 @@ def app_dir(app_id, backend):
 
 def data_dir(app_id):
     return os.path.join(base_dir(), "data", check_app_id(app_id))
+
+
+# the only program the helper ever runs, with this fixed argv plus one path
+PODMAN = "/usr/bin/podman"
+
+
+def delete_data_dir(ddir):
+    """Delete an app's data folder. Rootless containers create files owned by
+    sub-uids of the user (a database running as uid 999 in its container,
+    for example), which the user may only delete inside its own user
+    namespace, as `podman unshare` does."""
+    try:
+        shutil.rmtree(ddir)
+        return
+    except PermissionError:
+        if os.geteuid() == 0 or not os.access(PODMAN, os.X_OK):
+            raise
+    real = os.path.realpath(ddir)
+    if os.path.islink(ddir) or os.path.dirname(real) != os.path.realpath(os.path.join(base_dir(), "data")):
+        raise HelperError(f"refusing to delete {ddir}")
+    done = subprocess.run([PODMAN, "unshare", "rm", "-rf", "--one-file-system", "--", real],
+                          stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=600)
+    if done.returncode != 0 or os.path.exists(real):
+        raise HelperError(f"could not delete {ddir}: {done.stderr.strip()[-500:]}")
 
 
 def read_json(path, default=None):
@@ -345,7 +370,7 @@ def do_remove(req, rt, progress):
         ddir = data_dir(app_id)
         if os.path.isdir(ddir) and not os.path.islink(ddir):
             progress(f"Deleting {ddir}")
-            shutil.rmtree(ddir)
+            delete_data_dir(ddir)
     adir = app_dir(app_id, rt.name)
     if os.path.isdir(adir) and not os.path.islink(adir):
         shutil.rmtree(adir)
@@ -482,6 +507,10 @@ def main(argv):
         result = handle(argv[1], req)
     except (HelperError, ValidationError, RuntimeError_, ValueError, adopt.AdoptError) as e:
         emit({"type": "error", "message": str(e)})
+        return 1
+    except OSError as e:
+        # a file system error: report it without a traceback
+        emit({"type": "error", "message": f"{e.strerror or e}: {e.filename}" if e.filename else str(e)})
         return 1
     emit({"type": "result", **result})
     return 0

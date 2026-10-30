@@ -124,7 +124,7 @@ class TestListing(AdoptTestCase):
 
     def test_casaos_is_recognised(self):
         rt = FakeRuntime([container("app", "x", IMG_WEB, labels={"com.docker.compose.project.working_dir": "/var/lib/casaos/apps/app"})])
-        self.assertEqual(adopt.list_foreign(rt, set())[0]["managedBy"], "CasaOS")
+        self.assertEqual(adopt.list_foreign(rt, set())[0]["managedBy"], "another app store")
 
 
 class TestAnalysis(AdoptTestCase):

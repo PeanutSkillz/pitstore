@@ -51,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Generated passwords are applied consistently to every variable, URL and
   command that uses the same catalog placeholder (an app could not reach its
   own database).
+- Removing a rootless app with its data failed when a container had created
+  files as another user (for example a database); errors are reported without
+  a traceback.
 - App metadata with an empty thumbnail or per-language tips is accepted.
 - Page sections had no side padding and cards no border, and wide screens
   kept an empty sidebar column (mismatched PatternFly packages).

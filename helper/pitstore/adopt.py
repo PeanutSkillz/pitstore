@@ -64,7 +64,7 @@ def managed_by(containers):
         labels = _labels(c)
         if any(k.startswith("io.casaos") for k in labels) or \
                 str(labels.get("com.docker.compose.project.working_dir", "")).startswith("/var/lib/casaos"):
-            return "CasaOS"
+            return "another app store"
     for c in containers:
         labels = _labels(c)
         if labels.get("com.docker.compose.project"):

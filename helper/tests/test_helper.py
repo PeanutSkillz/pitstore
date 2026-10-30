@@ -5,8 +5,11 @@ the helper, against a fake runtime (no containers are started)."""
 import http.server
 import json
 import os
+import re
+import shutil
 import socketserver
 import stat
+import subprocess
 import sys
 import tempfile
 import threading
@@ -212,6 +215,57 @@ class TestInstall(HelperTestCase):
             self.install(compose())
         self.assertEqual(self.rt.containers, [])
         self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "apps", "podman", APP["id"], "plan.json")))
+
+
+class TestDeleteData(HelperTestCase):
+    def setUp(self):
+        super().setUp()
+        self.ddir = main.data_dir("org.example.db")
+        os.makedirs(os.path.join(self.ddir, "mysql"))
+
+    def test_files_of_container_users_are_deleted_in_the_user_namespace(self):
+        calls = []
+        real_rmtree = shutil.rmtree  # patched below; podman unshare does the real work
+
+        def rm(argv, **_kw):
+            calls.append(argv)
+            real_rmtree(argv[-1])
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        with mock.patch.object(main.shutil, "rmtree", side_effect=PermissionError(13, "denied")), \
+                mock.patch.object(main.os, "access", return_value=True), \
+                mock.patch.object(main.subprocess, "run", side_effect=rm):
+            main.delete_data_dir(self.ddir)
+        self.assertEqual(calls, [["/usr/bin/podman", "unshare", "rm", "-rf", "--one-file-system", "--",
+                                  os.path.realpath(self.ddir)]])
+        self.assertFalse(os.path.exists(self.ddir))
+
+    def test_failed_delete_is_reported_without_traceback(self):
+        with mock.patch.object(main.shutil, "rmtree", side_effect=PermissionError(13, "denied")), \
+                mock.patch.object(main.os, "access", return_value=True), \
+                mock.patch.object(main.subprocess, "run",
+                                  return_value=subprocess.CompletedProcess([], 1, "", "rm: cannot remove")):
+            with self.assertRaisesRegex(main.HelperError, "could not delete .*cannot remove"):
+                main.delete_data_dir(self.ddir)
+
+    def test_only_the_app_data_folder_can_be_deleted_this_way(self):
+        outside = os.path.join(self.tmp.name, "elsewhere")
+        os.makedirs(outside)
+        with mock.patch.object(main.shutil, "rmtree", side_effect=PermissionError(13, "denied")), \
+                mock.patch.object(main.os, "access", return_value=True), \
+                mock.patch.object(main.subprocess, "run") as run:
+            with self.assertRaisesRegex(main.HelperError, "refusing"):
+                main.delete_data_dir(outside)
+        run.assert_not_called()
+
+    def test_podman_unshare_is_the_only_process_the_helper_runs(self):
+        src = os.path.join(os.path.dirname(main.__file__))
+        uses = []
+        for name in sorted(os.listdir(src)):
+            if name.endswith(".py"):
+                with open(os.path.join(src, name)) as f:
+                    text = f.read()
+                uses += [(name, m) for m in re.findall(r"subprocess\.\w+\(|os\.(?:system|popen|exec\w*|spawn\w*)\(", text)]
+        self.assertEqual(uses, [("main.py", "subprocess.run(")])
 
 
 class TestInputValidation(unittest.TestCase):
