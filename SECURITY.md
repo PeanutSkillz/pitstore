@@ -10,8 +10,7 @@ Please **do not** open a public issue for security problems.
 
 Report privately through GitHub's
 [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)
-("Security" tab → "Report a vulnerability"), or by e-mail to
-webmaster@rcontentdesign.nl.
+("Security" tab → "Report a vulnerability").
 
 Please include:
 
