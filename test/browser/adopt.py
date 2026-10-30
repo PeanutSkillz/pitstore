@@ -145,7 +145,16 @@ async def main(outdir):
         await click_in(browser, "tile-local.legacy", "Start")
         await wait_js(browser, "() => document.getElementById('tile-local.legacy').innerText.includes('Running')")
         print("ok   legacy taken over as it is; stop and start from its tile")
-        await click_in(browser, "tile-local.legacy", "Release")
+        # release from the tile's settings dialog
+        await run_js(browser, """() => {
+            document.getElementById('tile-local.legacy').querySelector('.pitstore-settings-button').click();
+            return true;
+        }""")
+        await lifecycle.wait_text(browser, "Published ports")
+        text = await run_js(browser, "() => document.querySelector('.pf-v6-c-modal-box').innerText")
+        if "Remove…" in text or "Change settings…" in text:
+            raise SystemExit("FAILED: an app taken over as it is offers remove or change settings")
+        await lifecycle.click(browser, "Release…")
         await lifecycle.click(browser, "Release")
         await wait_js(browser, """() => !document.getElementById('tile-local.legacy') &&
             !!document.getElementById('foreign-docker-legacy')""", timeout=60)

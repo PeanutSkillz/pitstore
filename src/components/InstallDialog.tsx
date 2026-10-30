@@ -40,12 +40,14 @@ async function contextFor(appId: string, backend: Backend): Promise<InstallConte
     };
 }
 
-export const InstallDialog = ({ catalog, app, compose, composeText, installed, onClose, onDone }: {
+export const InstallDialog = ({ catalog, app, compose, composeText, installed, settings = false, onClose, onDone }: {
     catalog: Catalog;
     app: CatalogApp;
     compose: ComposeFile;
     composeText: string;
     installed: InstalledApp | null;
+    // change the settings of an installed app (an update with its current values)
+    settings?: boolean;
     onClose: () => void;
     onDone: () => void;
 }) => {
@@ -145,7 +147,10 @@ export const InstallDialog = ({ catalog, app, compose, composeText, installed, o
         }
     };
 
-    const title = isUpdate ? cockpit.format(_("Update $0"), app.title) : cockpit.format(_("Install $0"), app.title);
+    const title = settings
+        ? cockpit.format(_("Change settings of $0"), app.title)
+        : isUpdate ? cockpit.format(_("Update $0"), app.title) : cockpit.format(_("Install $0"), app.title);
+    const newVersion = settings && installed !== null && installed.app.contentHash !== app.contentHash;
     const ready = form && ctx && backends;
 
     return (
@@ -154,6 +159,12 @@ export const InstallDialog = ({ catalog, app, compose, composeText, installed, o
             <ModalBody>
                 {backends && backends.length === 0 && <Alert variant="danger" isInline title={_("No container runtime is available")} />}
                 {!ready && !error && <Spinner size="lg" />}
+                {ready && progress === null && newVersion && (
+                    <Alert
+variant="info" isInline
+                           title={cockpit.format(_("Saving also updates the app to version $0 from the catalog"), app.version || '?')}
+                    />
+                )}
                 {ready && progress === null && (
                     <Form isHorizontal>
                         <FormGroup label={_("Run with")} fieldId="pitstore-backend">
@@ -205,7 +216,7 @@ id={`var-${name}`} value={form.variables[name]}
                                     <FormGroup key={`${s.service}/${s.key}`} fieldId={`secret-${i}`} label={`${s.service}: ${s.key}`}>
                                         <Checkbox
                                             id={`secret-gen-${i}`} isChecked={s.generate}
-                                            label={_("Generate a random value (recommended)")}
+                                            label={isUpdate ? _("Keep the generated value") : _("Generate a random value (recommended)")}
                                             description={s.others.length > 0 ? cockpit.format(_("Also used by $0"), s.others.join(', ')) : ''}
                                             onChange={(_e, v) => update(f => { f.secrets[i].generate = v })}
                                         />
@@ -253,7 +264,7 @@ id={`var-${name}`} value={form.variables[name]}
                     </div>
                 )}
                 {warnings.map(w => <Alert key={w} variant="warning" isInline title={w} />)}
-                {error && <Alert variant="danger" isInline title={isUpdate ? _("Update failed") : _("Installation failed")}>{error}</Alert>}
+                {error && <Alert variant="danger" isInline title={settings ? _("Saving failed") : isUpdate ? _("Update failed") : _("Installation failed")}>{error}</Alert>}
             </ModalBody>
             <ModalFooter>
                 {progress === null && (
@@ -262,9 +273,11 @@ id={`var-${name}`} value={form.variables[name]}
                         isDisabled={!ready || blocked || !allConfirmed}
                         onClick={() => { install() }}
                     >
-                        {findings.length > 0
-                            ? (isUpdate ? _("Update with risky permissions") : _("Install with risky permissions"))
-                            : (isUpdate ? _("Update") : _("Install"))}
+                        {settings
+                            ? (findings.length > 0 ? _("Save with risky permissions") : _("Save"))
+                            : findings.length > 0
+                                ? (isUpdate ? _("Update with risky permissions") : _("Install with risky permissions"))
+                                : (isUpdate ? _("Update") : _("Install"))}
                     </Button>
                 )}
                 {error && <Button variant="secondary" onClick={() => { setProgress(null); setError(null) }}>{_("Back")}</Button>}

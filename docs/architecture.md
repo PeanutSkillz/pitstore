@@ -220,6 +220,14 @@ its own user namespace, so the helper then runs
   `rel="noopener noreferrer"`.
 * Start / stop / restart: helper verbs → runtime
   `POST /containers/{id}/start|stop|restart` for each container of the app.
+* Settings (cog on each tile): helper `get` shows what the app runs with
+  (backend, version, published ports, storage, names of credential
+  variables, data folder). *Change settings…* opens the install dialog as an
+  update with the current values filled in (section 3.3; generated secrets are
+  kept); when the catalog has a newer version, the dialog says that saving also
+  updates to it. *Remove…* is the remove flow of section 3.4. Apps taken over
+  as they are offer *Release…* instead, and taken-over apps cannot have their
+  settings changed here (section 3.6).
 * System summary: CPU (two `/proc/stat` samples), memory (`/proc/meminfo`,
   used = total − available), disk usage of `/` (`df -B1 --output=size,used,target /`,
   fixed argv) and uptime (`/proc/uptime`), read through the bridge as the

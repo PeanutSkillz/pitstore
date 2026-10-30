@@ -4,7 +4,8 @@ An app dashboard and app store for the [Cockpit](https://cockpit-project.org)
 web console. PitStore adds two pages to Cockpit:
 
 * **Dashboard**: tiles for your installed apps with their status, plus
-  open, start, stop and restart buttons, and a compact system summary. Apps
+  open, start, stop and restart buttons, a settings dialog to change or
+  remove an app, and a compact system summary. Apps
   that PitStore did not install are listed too, and can be taken over after
   an analysis that shows what could go wrong and how to correct it.
 * **Appstore**: browse, search and filter a catalog of self-hosted apps,

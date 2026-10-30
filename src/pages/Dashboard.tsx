@@ -13,6 +13,7 @@ import { Title } from '@patternfly/react-core/dist/esm/components/Title/index.js
 import { Page, PageSection } from '@patternfly/react-core/dist/esm/components/Page/index.js';
 import { Progress, ProgressSize } from '@patternfly/react-core/dist/esm/components/Progress/index.js';
 import { Spinner } from '@patternfly/react-core/dist/esm/components/Spinner/index.js';
+import { CogIcon } from '@patternfly/react-icons/dist/esm/icons/cog-icon.js';
 import { CubesIcon } from '@patternfly/react-icons/dist/esm/icons/cubes-icon.js';
 
 import cockpit from 'cockpit';
@@ -20,6 +21,7 @@ import { superuser } from 'superuser';
 
 import { AdoptDialog } from '../components/AdoptDialog';
 import { AppIcon } from '../components/AppIcon';
+import { AppSettingsDialog } from '../components/AppSettingsDialog';
 import {
     adminAllowed, appState, appUrl, BACKENDS, callHelper, dockerAvailable, listForeign, listInstalled,
     type ForeignGroup, type InstalledApp,
@@ -159,12 +161,12 @@ const STATE_LABELS = {
     missing: { color: 'red', text: "No containers" },
 } as const;
 
-const AppTile = ({ app, source, busy, onAction, onRelease }: {
+const AppTile = ({ app, source, busy, onAction, onSettings }: {
     app: InstalledApp;
     source: SourceUrl | null;
     busy: boolean;
     onAction: (verb: 'start' | 'stop' | 'restart') => void;
-    onRelease: () => void;
+    onSettings: () => void;
 }) => {
     const state = appState(app);
     const url = appUrl(app);
@@ -172,7 +174,17 @@ const AppTile = ({ app, source, busy, onAction, onRelease }: {
     const backend = BACKENDS.find(b => b.id === app.backend)?.label ?? app.backend;
     return (
         <Card isCompact className="pitstore-tile" id={`tile-${app.id}`}>
-            <CardHeader>
+            <CardHeader
+                actions={{
+                    actions: (
+                        <Button
+variant="plain" icon={<CogIcon />} isDisabled={busy} onClick={onSettings}
+                                aria-label={cockpit.format(_("Settings of $0"), app.app.title || app.id)}
+                                className="pitstore-settings-button"
+                        />
+                    ),
+                }}
+            >
                 <div className="pitstore-app-card-header">
                     <AppIcon source={source} path={app.app.icon || null} />
                     <div>
@@ -194,8 +206,6 @@ const AppTile = ({ app, source, busy, onAction, onRelease }: {
                     ? <Button variant="secondary" size="sm" isDisabled={busy} onClick={() => onAction('stop')}>{_("Stop")}</Button>
                     : <Button variant="secondary" size="sm" isDisabled={busy || state === 'missing'} onClick={() => onAction('start')}>{_("Start")}</Button>}
                 <Button variant="secondary" size="sm" isDisabled={busy || state === 'missing'} onClick={() => onAction('restart')}>{_("Restart")}</Button>
-                {app.adopted === 'in-place' &&
-                    <Button variant="link" size="sm" isDisabled={busy} onClick={onRelease}>{_("Release")}</Button>}
                 {busy && <Spinner size="md" aria-label={_("Working")} />}
             </CardFooter>
         </Card>
@@ -238,6 +248,7 @@ export const DashboardPage = () => {
     const [foreign, setForeign] = useState<ForeignGroup[]>([]);
     const [adopting, setAdopting] = useState<ForeignGroup | null>(null);
     const [releasing, setReleasing] = useState<InstalledApp | null>(null);
+    const [configuring, setConfiguring] = useState<InstalledApp | null>(null);
 
     const load = useCallback(async () => {
         const [isAdmin, docker] = await Promise.all([adminAllowed(), dockerAvailable()]);
@@ -329,7 +340,7 @@ key={`${app.backend}/${app.id}`} app={app}
                                      source={sources.get(app.app.store ?? '') ?? null}
                                      busy={busy[`${app.backend}/${app.id}`] === true}
                                      onAction={verb => act(app, verb)}
-                                     onRelease={() => setReleasing(app)}
+                                     onSettings={() => setConfiguring(app)}
                             />
                         ))}
                     </Gallery>
@@ -350,6 +361,13 @@ key={`${app.backend}/${app.id}`} app={app}
                 <AdoptDialog
 group={adopting} onClose={() => setAdopting(null)}
                              onDone={() => { setAdopting(null); load() }}
+                />
+            )}
+            {configuring && (
+                <AppSettingsDialog
+app={configuring} onClose={() => setConfiguring(null)}
+                                   onRelease={() => { setReleasing(configuring); setConfiguring(null) }}
+                                   onChanged={() => { setConfiguring(null); load() }}
                 />
             )}
             {releasing && (

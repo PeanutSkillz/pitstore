@@ -96,21 +96,21 @@ const SecurityReview = ({ policy }: { policy: PolicyResult }) => {
     return <Alert variant="success" isInline title={_("No risky options found")} />;
 };
 
-const RemoveDialog = ({ app, installed, onClose, onDone }: {
-    app: CatalogApp; installed: InstalledApp; onClose: () => void; onDone: () => void;
+export const RemoveDialog = ({ title, installed, onClose, onDone }: {
+    title: string; installed: InstalledApp; onClose: () => void; onDone: () => void;
 }) => {
     const [deleteData, setDeleteData] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const remove = () => {
         setBusy(true);
-        callHelper(installed.backend, 'remove', { appId: app.id, deleteData })
+        callHelper(installed.backend, 'remove', { appId: installed.id, deleteData })
                 .then(onDone)
                 .catch(e => { setError((e as Error).message); setBusy(false) });
     };
     return (
         <Modal isOpen variant="small" onClose={busy ? undefined : onClose} aria-labelledby="pitstore-remove-title">
-            <ModalHeader title={cockpit.format(_("Remove $0?"), app.title)} labelId="pitstore-remove-title" titleIconVariant="warning" />
+            <ModalHeader title={cockpit.format(_("Remove $0?"), title)} labelId="pitstore-remove-title" titleIconVariant="warning" />
             <ModalBody>
                 <p>{_("The app's containers are removed. Its data is kept unless you choose otherwise.")}</p>
                 <Checkbox
@@ -309,7 +309,7 @@ catalog={catalog} app={app} compose={source.compose} composeText={source.text}
             )}
             {dialog === 'remove' && installed && (
                 <RemoveDialog
-app={app} installed={installed} onClose={() => setDialog(null)}
+title={app.title} installed={installed} onClose={() => setDialog(null)}
                               onDone={() => { setDialog(null); onChanged() }}
                 />
             )}

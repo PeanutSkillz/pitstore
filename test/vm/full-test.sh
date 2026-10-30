@@ -81,6 +81,10 @@ for backend in podman-user podman-system docker; do
     (cd "$out/$backend" && as_user "$user" python3 "$tests/test/browser/lifecycle.py" "$out/$backend" --backend "$backend")
 done
 
+step "settings dialog from the dashboard: change the port, remove with data (rootless Podman)"
+install -d -o pitstore-test "$out/settings"
+(cd "$out/settings" && as_user pitstore-test python3 "$tests/test/browser/settings.py" "$out/settings")
+
 step "take over other apps through the UI: docker as pitstore-admin"
 install -d -o pitstore-admin "$out/adopt"
 (cd "$out/adopt" && as_user pitstore-admin python3 "$tests/test/browser/adopt.py" "$out/adopt")

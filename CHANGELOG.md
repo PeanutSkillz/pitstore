@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Read-only mounts of `/etc/localtime` and `/etc/timezone` are allowed.
 - Icons and screenshots are validated (magic bytes, size, SVG filter) and shown
   as data: URLs.
+- Dashboard: a settings button on every app tile shows what the app runs with
+  and lets you change its settings (ports, folders, variables) or remove it.
 - Dashboard: other apps on this server (containers PitStore did not install)
   are listed. *Take over…* analyses them and shows every finding with its
   possible corrections; an app is taken over as it is, or recreated with the
