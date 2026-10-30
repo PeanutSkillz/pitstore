@@ -15,7 +15,7 @@ export interface ComposeSummary {
 }
 
 // environment keys that hold credentials; the catalog ships placeholders
-export const SECRET_KEY_RE = /(?:PASS(?:WORD)?|SECRET|TOKEN|KEY|SALT)$/i;
+export const SECRET_KEY_RE = /(?:PASS(?:WORD|WD)?|PWD|SECRET|TOKEN|KEY|SALT)$/i;
 
 function parsePort(entry: Json): { published: string; target: string; protocol: string } | null {
     if (typeof entry === 'number')

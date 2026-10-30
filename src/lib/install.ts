@@ -19,7 +19,10 @@ const SECRET_MARK = /@@pitstore-secret:[a-z0-9-]{1,32}@@/;
 
 export interface PortField { service: string; index: number; target: number; protocol: string; published: string }
 export interface BindField { service: string; index: number; target: string; source: string; readOnly: boolean }
-export interface SecretField { service: string; key: string; generate: boolean; value: string }
+/* One field per distinct catalog placeholder value; `others` lists further
+ * "<service>/<key>" variables with the same placeholder, which always get
+ * the same value so services that share a password stay in sync. */
+export interface SecretField { service: string; key: string; literal: string; others: string[]; generate: boolean; value: string }
 
 export interface InstallForm {
     backend: Backend;
@@ -116,11 +119,18 @@ export function initialForm(compose: ComposeFile, ctx: InstallContext, backend: 
         });
         const prevEnv = new Map(envEntries(prev?.environment));
         for (const [key, value] of envEntries(def.environment)) {
-            if (!SECRET_KEY_RE.test(key) || value === '' || value.includes(DEFAULT_PASSWORD_SECRET))
+            // "" and '' are how some catalog files spell "empty"
+            if (!SECRET_KEY_RE.test(key) || value === '' || value === '""' || value === "''" ||
+                value.includes(DEFAULT_PASSWORD_SECRET))
                 continue;
+            const same = form.secrets.find(s => s.literal === value);
+            if (same) {
+                same.others.push(`${service}/${key}`);
+                continue;
+            }
             const old = prevEnv.get(key);
             const generate = old === undefined || SECRET_MARK.test(old);
-            form.secrets.push({ service, key, generate, value: generate ? '' : old });
+            form.secrets.push({ service, key, literal: value, others: [], generate, value: generate ? '' : old });
         }
         // variables used directly as an environment value keep their previous value
         const raw = new Map(envEntries(compose.services[service]?.environment));
@@ -131,6 +141,34 @@ export function initialForm(compose: ComposeFile, ctx: InstallContext, backend: 
         }
     }
     return form;
+}
+
+const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/* Placeholder secrets inside other strings are only replaced where they are
+ * unambiguous, so host, user and database names that merely contain the same
+ * word stay intact:
+ *  - the password part of a URL ("scheme://user:<placeholder>@host")
+ *  - with `tokens`, a whole word in a command line ("--requirepass <placeholder>")
+ */
+function replaceInText(value: string, pairs: [string, string][], tokens: boolean): string {
+    let v = value;
+    for (const [lit, mark] of pairs) {
+        v = v.replace(new RegExp(`(://[^:/@\\s]*:)${escapeRe(lit)}@`, 'g'), `$1${mark}@`);
+        if (tokens)
+            v = v.replace(new RegExp(`(^|[\\s='"])${escapeRe(lit)}(?=$|[\\s'"])`, 'g'), `$1${mark}`);
+    }
+    return v;
+}
+
+function mapStrings(value: Json, fn: (s: string) => string): Json {
+    if (typeof value === 'string')
+        return fn(value);
+    if (Array.isArray(value))
+        return value.map(v => mapStrings(v, fn));
+    if (value && typeof value === 'object')
+        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, mapStrings(v, fn)]));
+    return value;
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -145,22 +183,21 @@ export async function buildCompose(compose: ComposeFile, form: InstallForm, ctx:
     const resolved = interpolateCompose(compose, vars(ctx, form.variables));
     const services: ComposeFile['services'] = {};
 
-    // catalog placeholder secrets become helper-generated values; the same
-    // literal is replaced everywhere so services that share it stay in sync
+    // catalog placeholder secrets become helper-generated values (or the
+    // user's own); every credential variable holding the same placeholder gets
+    // the same replacement, and so do URL passwords and command-line words
+    // (see replaceInText), so services that share a password stay in sync
     const replacements: [string, string][] = [];
     for (const s of form.secrets) {
-        const env = new Map(envEntries(resolved.services[s.service]?.environment));
-        const literal = env.get(s.key);
-        if (!literal)
-            continue;
         if (s.generate) {
             // same length as the catalog's example value (some apps require an exact length)
-            const length = Math.min(64, Math.max(24, literal.length));
-            const key = 'v' + (await sha256Hex(literal)).slice(0, 12) + '-' + length;
-            replacements.push([literal, `@@pitstore-secret:${key}@@`]);
+            const length = Math.min(64, Math.max(24, s.literal.length));
+            const key = 'v' + (await sha256Hex(s.literal)).slice(0, 12) + '-' + length;
+            replacements.push([s.literal, `@@pitstore-secret:${key}@@`]);
+        } else {
+            replacements.push([s.literal, s.value]);
         }
     }
-    const longEnough = replacements.filter(([lit]) => lit.length >= 8);
 
     for (const [name, def] of Object.entries(resolved.services)) {
         const out: { [key: string]: Json } = { ...def };
@@ -185,18 +222,16 @@ export async function buildCompose(compose: ComposeFile, form: InstallForm, ctx:
         if (env.length > 0) {
             const map: { [key: string]: Json } = {};
             for (const [key, value] of env) {
-                const secret = form.secrets.find(s => s.service === name && s.key === key);
-                let v = value;
-                if (secret && !secret.generate)
-                    v = secret.value;
-                else if (secret)
-                    v = replacements.find(([lit]) => lit === value)?.[1] ?? value;
-                else
-                    for (const [lit, mark] of longEnough)
-                        v = v.split(lit).join(mark);
-                map[key] = v;
+                // exact placeholders only in credential variables: the same
+                // word may also be a user or database name elsewhere
+                const exact = SECRET_KEY_RE.test(key) ? replacements.find(([lit]) => lit === value) : undefined;
+                map[key] = exact ? exact[1] : replaceInText(value, replacements, false);
             }
             out.environment = map;
+        }
+        for (const k of ['command', 'entrypoint', 'healthcheck']) {
+            if (k in out)
+                out[k] = mapStrings(out[k], v => replaceInText(v, replacements, true));
         }
         services[name] = out;
     }

@@ -202,16 +202,17 @@ id={`var-${name}`} value={form.variables[name]}
                                     </FormGroup>
                                 ))}
                                 {form.secrets.map((s, i) => (
-                                    <FormGroup key={`${s.service}/${s.key}`} label={`${s.service}: ${s.key}`} fieldId={`secret-${i}`}>
+                                    <FormGroup key={`${s.service}/${s.key}`} fieldId={`secret-${i}`} label={`${s.service}: ${s.key}`}>
                                         <Checkbox
-id={`secret-gen-${i}`} isChecked={s.generate}
-                                                  label={_("Generate a random value (recommended)")}
-                                                  onChange={(_e, v) => update(f => { f.secrets[i].generate = v })}
+                                            id={`secret-gen-${i}`} isChecked={s.generate}
+                                            label={_("Generate a random value (recommended)")}
+                                            description={s.others.length > 0 ? cockpit.format(_("Also used by $0"), s.others.join(', ')) : ''}
+                                            onChange={(_e, v) => update(f => { f.secrets[i].generate = v })}
                                         />
                                         {!s.generate && (
                                             <TextInput
-id={`secret-${i}`} type="password" value={s.value} aria-label={s.key}
-                                                       onChange={(_e, v) => update(f => { f.secrets[i].value = v })}
+                                                id={`secret-${i}`} type="password" value={s.value} aria-label={s.key}
+                                                onChange={(_e, v) => update(f => { f.secrets[i].value = v })}
                                             />
                                         )}
                                     </FormGroup>
