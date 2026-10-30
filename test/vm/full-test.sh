@@ -81,6 +81,15 @@ for backend in podman-user podman-system docker; do
     (cd "$out/$backend" && as_user "$user" python3 "$tests/test/browser/lifecycle.py" "$out/$backend" --backend "$backend")
 done
 
+step "take over other apps through the UI: docker as pitstore-admin"
+install -d -o pitstore-admin "$out/adopt"
+(cd "$out/adopt" && as_user pitstore-admin python3 "$tests/test/browser/adopt.py" "$out/adopt")
+# clean up: the recreated app through PitStore, the released container directly
+echo '{"scope": "system", "backend": "docker", "appId": "local.demo", "deleteData": false}' |
+    /usr/share/cockpit/pitstore/helper/pitstore-helper remove | tail -1
+docker rm -f legacy >/dev/null
+docker volume rm demo_data >/dev/null
+
 step "no extra listening ports after the tests"
 PITSTORE_TEST_PASSWORD="$(cat /root/pitstore-test.pw)" python3 -I "$tests/test/integration/check_install.py" verify "$out/baseline.json" --installed
 
