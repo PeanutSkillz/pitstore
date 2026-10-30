@@ -31,7 +31,7 @@ jobs:
       - name: Install Debian build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends debhelper lintian
+          sudo apt-get install -y --no-install-recommends build-essential debhelper lintian
       - name: Build .deb and run lintian
         run: make deb
       - name: Collect package
