@@ -56,7 +56,7 @@ def setup_foreign():
 async def dashboard(browser):
     browser.switch_to_top()
     await browser.bidi("browsingContext.navigate", context=browser.top_context,
-                       url=f"{BASE}/pitstore/dashboard", wait="complete")
+                       url=f"{BASE}/pitstore/dashboard", wait="interactive", timeout=60)
     await wait_js(browser, f"() => !!document.querySelector(\"iframe[name='{FRAME}']\")")
     await browser.switch_to_frame(FRAME)
 
@@ -115,6 +115,10 @@ async def main(outdir):
             return true;
         }""")
         await wait_js(browser, "() => document.body.innerText.includes('The containers will be recreated')")
+        # every decision is made, so the button must be enabled right away
+        await wait_js(browser, """() => [...document.querySelectorAll('.pf-v6-c-modal-box button')]
+            .some(b => b.textContent.trim() === 'Take over' && !b.disabled)""", timeout=5)
+        await asyncio.sleep(1)  # button colour transition
         await shot(browser, outdir, "analysis-demo-corrections")
         await lifecycle.click(browser, "Take over")
         await wait_js(browser, """() => !document.querySelector('.pf-v6-c-modal-box') &&

@@ -75,7 +75,7 @@ async def main(outdir):
                 break
             await asyncio.sleep(2)
         print(f"ok   {url} answered {status}" if status == 200 else f"FAILED: {url} answered {status}", flush=True)
-        await browser.bidi("browsingContext.navigate", context=browser.top_context, url=url, wait="complete")
+        await browser.bidi("browsingContext.navigate", context=browser.top_context, url=url, wait="complete", timeout=60)
         await asyncio.sleep(5)
         await save_shot(browser, outdir / "app.png")
         print("ok   screenshot of the app saved")

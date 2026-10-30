@@ -84,7 +84,7 @@ async def wait_text(browser, text, timeout=60):
 async def open_details(browser):
     browser.switch_to_top()
     await browser.bidi("browsingContext.navigate", context=browser.top_context,
-                       url=f"{BASE}/pitstore/appstore", wait="complete")
+                       url=f"{BASE}/pitstore/appstore", wait="complete", timeout=60)
     await wait_js(browser, f"() => !!document.querySelector(\"iframe[name='{FRAME}']\")")
     await browser.switch_to_frame(FRAME)
     await wait_js(browser, f"() => !!document.getElementById('app-{APP_ID}')", timeout=120)

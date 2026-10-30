@@ -49,7 +49,7 @@ async def main(outdir, app_id):
                            viewport={"width": 1280, "height": 900})
         await login(browser)
         await browser.bidi("browsingContext.navigate", context=browser.top_context,
-                           url=f"{BASE}/pitstore/dashboard", wait="complete")
+                           url=f"{BASE}/pitstore/dashboard", wait="complete", timeout=60)
         await wait_js(browser, f"() => !!document.querySelector(\"iframe[name='{FRAME}']\")")
         await browser.switch_to_frame(FRAME)
 

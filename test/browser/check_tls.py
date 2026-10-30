@@ -19,7 +19,7 @@ async def main(outdir):
     async with ChromiumBidi(headless=True) as browser:
         await login(browser)
         await browser.bidi("browsingContext.navigate", context=browser.top_context,
-                           url=f"{BASE}/pitstore/appstore", wait="complete")
+                           url=f"{BASE}/pitstore/appstore", wait="complete", timeout=60)
         await wait_js(browser, "() => !!document.querySelector(\"iframe[name='cockpit1:localhost/pitstore/appstore']\")")
         await browser.switch_to_frame("cockpit1:localhost/pitstore/appstore")
         await wait_js(browser, "() => document.body.innerText.includes('The catalog could not be loaded')", timeout=60)

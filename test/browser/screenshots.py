@@ -68,7 +68,7 @@ async def login(browser):
     """Log in to Cockpit with the test credentials from the environment."""
     for attempt in (1, 2):
         try:
-            await browser.bidi("browsingContext.navigate", context=browser.top_context, url=f"{BASE}/", wait="complete")
+            await browser.bidi("browsingContext.navigate", context=browser.top_context, url=f"{BASE}/", wait="complete", timeout=60)
             break
         except Exception as e:
             # new container interfaces make Chrome report a network change once
@@ -108,7 +108,7 @@ async def main(outdir):
         for page, title in PAGES.items():
             browser.switch_to_top()
             await browser.bidi("browsingContext.navigate", context=browser.top_context,
-                               url=f"{BASE}/pitstore/{page}", wait="complete")
+                               url=f"{BASE}/pitstore/{page}", wait="complete", timeout=60)
             frame = f"cockpit1:localhost/pitstore/{page}"
             await wait_js(browser, f"() => !!document.querySelector(\"iframe[name='{frame}']\")")
             await browser.switch_to_frame(frame)
