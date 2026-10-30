@@ -22,7 +22,8 @@ export interface Listing<C> {
 /* "Airsonic advanced (LinuxServer.io)" and "Airsonic Advanced" are one app:
  * a trailing note in parentheses is ignored, as are case and punctuation. */
 export function titleKey(title: string): string {
-    return title.replace(/\s*\([^()]*\)\s*$/u, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+    return title.replace(/\s*\([^()]*\)\s*$/u, '').toLowerCase()
+            .replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
 /* catalogs: in priority order. installed: ids of installed apps. */
