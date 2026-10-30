@@ -108,7 +108,9 @@ the pattern cockpit-podman already uses (`src/detect-quadlets.py`).
   ever contains user data; all user data travels in the JSON body.
 * Verbs: `install`, `update`, `remove`, `start`, `stop`, `restart`,
   `list`, `inspect`, `preflight` (dry-run validation, returns the policy
-  verdict). Each call is one process; nothing stays resident.
+  verdict), and for apps PitStore did not install: `foreign`, `analyze`,
+  `adopt` and `release` (section 3.6). Each call is one process; nothing
+  stays resident.
 * The helper is the **authoritative** enforcement point. It receives the
   normalized install plan (section 4), validates it against the JSON policy
   (section 6) and the per-app confirmation record, and only then talks to the
@@ -138,6 +140,9 @@ Containers, networks and volumes created by PitStore carry labels
 `io.pitstore.app=<id>`, `io.pitstore.service=<name>`,
 `io.pitstore.version=<x-casaos.version>`. The dashboard lists apps by
 these labels, so it reflects the runtime truth, not only the state files.
+The one exception is an app taken over as it is (section 3.6): the runtime
+APIs cannot add labels to an existing container, so its `plan.json` records
+the container names per service and the helper finds them by name.
 
 ## 3. Data flows
 
@@ -192,7 +197,7 @@ Triggered when the catalog `version`/`content_hash` differs from
 install validation again. The policy diff is shown: *new* blocked
 findings need a new confirmation, and old confirmations do not carry over to
 a changed compose hash. The helper pulls the new images, then recreates the
-containers. Data directories and `secrets.env` are kept.
+containers. Data directories and `secrets.json` are kept.
 
 ### 3.4 Remove
 
@@ -219,6 +224,70 @@ and only paths under the app's own data dir are ever deleted.
 * App tiles refresh every 10 s while the page is visible and when
   administrative access changes. Apps on the system Podman and Docker are only
   listed with administrative access.
+* Other apps on this server: helper `foreign` lists, read-only, the
+  containers without PitStore labels, grouped as in section 3.6. Each group
+  has a *Take over…* button.
+
+### 3.6 Taking over other apps
+
+Containers that PitStore did not create (started by hand, with
+`docker compose`, `podman-compose` or another app store) can be shown and,
+on request, taken over.
+
+1. **List** (`foreign`): all containers without the `io.pitstore.app`
+   label, minus containers already taken over, PitStore's own backup
+   containers (`*-pitstore-backup-*`) and Podman infra containers. They are
+   grouped by the compose project label (`com.docker.compose.project`,
+   `io.podman.compose.project`); a container without one is its own group.
+   The group says whether another tool still manages it (a compose
+   label, or labels of another app store). Nothing is changed.
+2. **Analyse** (`analyze`): the helper inspects each container through the
+   Docker-compatible API (Podman: `/v4.0.0` compat endpoints) and rebuilds a
+   compose model from it: image, command, entrypoint, environment, ports,
+   mounts, restart policy, health check, capabilities, devices, security
+   options, resources. Values Docker adds by itself (for example the
+   implied `label=disable` of `--privileged`, the default 64 MiB `/dev/shm`)
+   are left out. This model goes through the same policy as a catalog app
+   (section 6), and every result becomes a *check* with its corrections:
+
+   | Check | Severity | Corrections |
+   |---|---|---|
+   | Blocked option (privileged, host namespace, capability, device, mount of a system path or runtime socket …) | decision | allow it (confirmation, recorded like an install confirmation), or remove it; host networking can only be allowed, because the app's ports depend on it |
+   | Setting PitStore cannot recreate (other runtime, GPU requests, log driver …) | warning | keep, or remove |
+   | Published host port in use by something else | warning | keep, or use another port (validated number) |
+   | Restart policy `no` | warning | keep, or restart automatically |
+   | Data in an anonymous volume | warning | none: recreating would lose the data, so only an in-place takeover is possible |
+   | Also managed by another tool | warning | none |
+   | Host folders, credential variables, stopped containers | info | none; credentials are shown by **name** only, never by value |
+
+   The analysis returns no environment values at all.
+3. **Take over** (`adopt`): the helper analyses the group again and
+   validates the choices against it (unknown check or correction ids,
+   missing decisions and invalid ports are refused).
+   * Without a correction that needs new containers: **in place**. Nothing
+     changes in the runtime; `plan.json` records the container names and the
+     app shows on the dashboard with start, stop and restart.
+   * With such a correction: **recreate**. The containers are recreated from
+     the exact image ID they run now (no pull, so a moving tag cannot change
+     the version), with the same bind mounts and the same named volumes
+     (kept by name). The old containers are stopped and renamed to
+     `<name>-pitstore-backup-<timestamp>`; when anything fails, the new ones
+     are removed and the old ones get their name back and are started
+     again. Only after the new containers run are the old ones deleted, with
+     `v=false` so their volumes stay. The new containers carry the PitStore
+     labels, so from then on the app is an ordinary PitStore app.
+   * The app gets an id in the `local.` namespace by default and is not
+     linked to a catalog entry. The helper refuses a catalog update for a
+     taken-over app, whatever its id, because a catalog compose would replace
+     the containers and their layout.
+4. **Release** (`release`, in-place takeovers only): PitStore forgets the
+   app (its state directory is removed). The containers keep running and
+   are listed under other apps again. Removing an in-place app is refused;
+   a recreated app is removed like any PitStore app.
+
+Limits: renaming an in-place container outside PitStore makes PitStore lose
+it (release and take it over again); recreating is impossible while data
+lives in an anonymous volume.
 
 ## 4. Translating the x-casaos format
 
@@ -294,7 +363,7 @@ implemented as a pure function over strings, with a closed variable set:
 | `PUID` / `PGID` | uid/gid of the runtime owner (rootless: session user; system: configurable, default 1000) | `1000` |
 | `TZ` | host time zone (`/etc/timezone` via `cockpit.file`) | system time zone |
 | `DefaultUserName` | `admin` | `admin` |
-| `DefaultPassword` | **random per app**, 24 chars, generated by the helper, stored in `secrets.env` (0600), shown once in the UI | **fixed string `casaos`** |
+| `DefaultPassword` | **random per app**, 24 chars, generated by the helper, stored in `secrets.json` (0600), shown once in the UI | **fixed string `casaos`** |
 
 An unknown variable makes the app *unsupported*. It is never replaced by an
 empty string.
@@ -308,11 +377,16 @@ chosen by the user in the install dialog. The default is
 
 The catalog ships literal placeholder secrets (verified: `2FAuth` has
 `APP_KEY: SomeRandomStringOf32CharsExactly`). Environment keys matching
-`/(PASS(WORD)?|SECRET|TOKEN|KEY|SALT)$/i` are flagged in the install dialog.
-Implemented as placeholders: the page replaces each flagged literal (and
-every other occurrence of the same literal of 8+ characters, so services and
-URLs that share it stay consistent) and `$DefaultPassword` with
-`@@pitstore-secret:<key>@@`. A key can end in `-<n>` to ask for a length
+`/(?:PASS(?:WORD|WD)?|PWD|SECRET|TOKEN|KEY|SALT)$/i` are flagged in the
+install dialog, with one field per distinct value.
+Implemented as placeholders: the page replaces each flagged literal and
+`$DefaultPassword` with `@@pitstore-secret:<key>@@`. The same literal is
+replaced in every credential variable that holds exactly that value, in the
+password part of URLs (`scheme://user:<literal>@host`) and as a whole word
+in `command`, `entrypoint` and health checks, so services that share a
+password stay consistent (verified: RomM's `DB_PASSWD` and MariaDB's
+`MARIADB_PASSWORD`). Other text is never rewritten. An empty value (`""`)
+counts as empty, not as a secret. A key can end in `-<n>` to ask for a length
 (the length of the catalog's example value, 24–64; some apps need an exact
 length). The helper fills them with random alphanumeric values, stores them
 in `secrets.json` (mode 0600) and reuses them on updates. `plan.json` keeps
@@ -409,9 +483,12 @@ class Runtime(Protocol):           # helper/pitstore/runtime/base.py
   netavark + aardvark-dns (verified in casa-test), so a per-app network
   gives DNS by service name. Ubuntu 22.04 ships Podman 3.4.4 (CNI). DNS
   there needs the `dnsname` plugin, which is not verified (Q3).
-* `DockerRuntime` uses the Docker Engine API (`/v1.41/...`, the oldest
-  version shipped by supported Ubuntu `docker.io` packages; to verify in
-  phase 4) on `/run/docker.sock`. It is only offered when that socket exists.
+* `DockerRuntime` uses the Docker Engine API on `/run/docker.sock`, at the
+  version the daemon reports in `GET /version` (recent Docker refuses old
+  client versions). API 1.44 (Docker 25) or newer is required. It is only
+  offered when that socket exists.
+* Both runtimes expose the Docker-compatible endpoints used for taking
+  over apps (list all containers, inspect, rename; section 3.6).
 * Transport: `http.client.HTTPConnection` with an `AF_UNIX` socket, JSON
   bodies built from dicts, and URL path segments percent-encoded with
   `urllib.parse.quote(..., safe="")`. No string-built commands anywhere.
@@ -452,8 +529,13 @@ when the user picks it) → Docker (if configured).
 * casa-test VM (restored to snapshot `clean` before every full install
   test): install the `.deb`, check the menu entries and existing Cockpit
   pages over HTTP/browser automation, run the app lifecycle against real
-  Podman (rootless and system) and later Docker, `ss -tlnp` before and
+  Podman (rootless and system) and Docker, `ss -tlnp` before and
   after, then remove the package and check Cockpit again.
+* Browser tests in the VM (`test/browser/`, Cockpit's WebDriver BiDi driver
+  with headless Chrome): page screenshots and console errors, the install /
+  update / remove life cycle per backend, the dashboard, and taking over
+  (`adopt.py`: foreign containers created with `docker run`, analysis without
+  environment values, recreate with corrections, in-place takeover, release).
 
 ### 9.1 Robustness decisions (phase 4)
 
@@ -489,6 +571,6 @@ when the user picks it) → Docker (if configured).
   plugin. Fallback: run multi-service apps in a pod and add `/etc/hosts`
   entries for service names. Decide in phase 4 after testing a 22.04 VM,
   which would be a second VM and needs approval.
-* **Q4 – Docker compatibility path.** Apps installed by CasaOS itself on the
-  same host are not managed by PitStore (different labels). Out of scope
-  unless requested.
+* **Q4 – decided:** apps that PitStore did not install (including those of
+  another app store) are listed on the dashboard and can be taken over on
+  request, after an analysis with per-check corrections (section 3.6).

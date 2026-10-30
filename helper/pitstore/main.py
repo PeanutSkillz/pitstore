@@ -217,6 +217,9 @@ def do_install(req, rt, progress):
             raise HelperError(f"{app_id} is already installed with {other}")
     if is_update and not old_plan:
         raise HelperError(f"{app_id} is not installed")
+    if old_plan and old_plan.get("adopted"):
+        # a catalog compose would replace the taken-over containers and their layout
+        raise HelperError(f"{app_id} was taken over, not installed from the catalog; it cannot be updated from it")
     if not is_update and (old_plan or app_containers(rt, app_id)):
         raise HelperError(f"{app_id} is already installed")
 

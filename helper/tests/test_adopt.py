@@ -210,6 +210,15 @@ class TestAdopt(AdoptTestCase):
         self.assertEqual(main.do_list(rt)["apps"], [])
         self.assertNotIn("remove_container", rt.mutations(), "releasing never deletes containers")
 
+    def test_taken_over_app_is_not_updated_from_the_catalog(self):
+        rt = FakeRuntime(romm())
+        self.do_adopt(rt, {}, app_id="org.example.romm")
+        req = {"app": {"id": "org.example.romm", "title": "RomM"}, "compose": {"services": {}},
+               "composeSha256": "a" * 64, "confirmed": [], "update": True}
+        with self.assertRaisesRegex(main.HelperError, "taken over"):
+            main.do_install(req, rt, self.progress.append)
+        self.assertEqual(rt.calls, [])
+
     def test_recreate_with_corrections_keeps_data_and_exact_images(self):
         rt = FakeRuntime(romm(privileged=True, restart="no"))
         result = self.do_adopt(rt, {"romm/privileged": {"choice": "remove"}, "restart:romm": {"choice": "set"}})

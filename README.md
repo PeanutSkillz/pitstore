@@ -4,7 +4,9 @@ An app dashboard and app store for the [Cockpit](https://cockpit-project.org)
 web console. PitStore adds two pages to Cockpit:
 
 * **Dashboard**: tiles for your installed apps with their status, plus
-  open, start, stop and restart buttons, and a compact system summary.
+  open, start, stop and restart buttons, and a compact system summary. Apps
+  that PitStore did not install are listed too, and can be taken over after
+  an analysis that shows what could go wrong and how to correct it.
 * **Appstore**: browse, search and filter a catalog of self-hosted apps,
   read the details, and install, update or remove apps.
 
@@ -71,6 +73,10 @@ touch apps you installed with it, or their data.
   (`privileged`, host namespaces, extra capabilities, devices, mounts of
   the container runtime socket or system directories) are blocked unless you
   confirm them explicitly, per app.
+* Taking over an existing app applies the same checks. PitStore never shows
+  the values of its environment variables, and recreates containers only
+  with the same images, folders and volumes, keeping the old ones until the
+  new ones run.
 * The Cockpit Content-Security-Policy is kept unchanged.
 
 See [SECURITY.md](SECURITY.md) for how to report a vulnerability, and

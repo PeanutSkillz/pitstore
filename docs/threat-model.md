@@ -11,7 +11,7 @@ then STRIDE per boundary. Components and flows are defined in
 | Host root | Any container escape or privileged container equals full host compromise. |
 | Cockpit session / superuser | Gives shell-level control of the host. |
 | App data (`<data root>/<id>`) | User data such as photos and documents. |
-| App secrets (`secrets.env`) | Generated passwords and keys of installed apps. |
+| App secrets (`secrets.json`) | Generated passwords and keys of installed apps. |
 | Runtime sockets | Write access to these sockets means root (system Podman or Docker) or the user's account (rootless). |
 | Catalog integrity | Decides which images and options run on the host. |
 | Cockpit availability | PitStore must never break existing Cockpit pages. |
@@ -76,6 +76,17 @@ stdin as untrusted.
 | Interrupted install leaves unknown containers (D/T) | State is written before containers are created; failure restores the previous state; SIGHUP and a closed stdout are ignored. | Helper unit tests (`test_state_is_written_before_containers_are_created`, `test_failed_update_restores_the_previous_state`). |
 | Large input / DoS (D) | The request size limit is 1 MiB, with limits on service count, string lengths and recursion depth. | Unit test. |
 
+#### Taking over other apps (architecture §3.6)
+
+| Threat | Mitigation | Test |
+|---|---|---|
+| Leaking credentials of foreign containers to the browser (I) | `foreign` and `analyze` return no environment values; credential variables are reported by name only. `plan.json` of a taken-over app stores no environment. | Helper tests `test_reconstruct_keeps_mounts_ports_and_hides_nothing_secret_in_output` and `test_in_place_changes_nothing_and_records_confirmation`; VM test checks the analysis dialog for a known password value. |
+| Taking over silently legitimises a dangerous container (E) | The reconstructed configuration goes through the same policy as a catalog app. Every blocked option is a *decision*: the user must allow it (recorded as a confirmation) or remove it. | Helper test `test_risky_option_needs_a_decision`; VM test with a `--privileged` container. |
+| Crafted choices from a modified browser (T/E) | The helper re-runs the analysis and accepts only check and correction ids it produced itself; ports must be numbers in range and free; recreate is refused with anonymous volumes or unsupported settings that are kept. | Helper tests, including a port value `80; rm -rf /`. |
+| Data loss while recreating (D/T) | Same image ID (no pull), same bind mounts and named volumes; the old containers are only renamed until the new ones run, restored on any failure, and deleted with `v=false`. Recreate is refused when data lives in an anonymous volume. | Helper tests for recreate, rollback and the anonymous-volume refusal; VM test with Docker (`adopt.py`). |
+| Catalog update replacing a taken-over app (T/D) | The helper refuses an install or update for an app id whose plan is a takeover. | Helper test `test_taken_over_app_is_not_updated_from_the_catalog`. |
+| Another tool keeps managing the app (T) | Shown as a warning in the analysis. PitStore cannot stop another tool from changing the containers. | – (documented residual risk) |
+
 **Residual risk, stated plainly:** an admin who has superuser in Cockpit can
 already run anything (terminal, `podman run --privileged`). The helper's
 checks protect against untrusted *catalog content* and against injection
@@ -86,7 +97,7 @@ through the browser. They do not protect against the authenticated admin.
 | Threat | Mitigation | Test |
 |---|---|---|
 | Request smuggling or path injection into API URLs (T) | Every path segment is percent-encoded with `quote(safe="")`, bodies are serialized with `json.dumps`, and container names come from validated ids. | Unit tests against a fake socket that records the raw requests. |
-| Acting on containers PitStore did not create (T) | All lifecycle verbs first filter by the `io.pitstore.app=<id>` label and refuse IDs without it. | Helper test. VM test: a container not created by PitStore cannot be stopped through PitStore. |
+| Acting on containers PitStore did not create (T) | All lifecycle verbs first filter by the `io.pitstore.app=<id>` label and refuse IDs without it. The only other containers they act on are those the user explicitly took over in place, found by the names recorded in that app's `plan.json`. | Helper test. VM test: a container not created by PitStore cannot be stopped through PitStore. |
 | Wrong socket, a lookalike socket planted by a local user (S) | System sockets are fixed paths under `/run`. The rootless path comes from the helper's own `XDG_RUNTIME_DIR` and must be owned by the uid and mode 0600/0660. | Unit test for the ownership check. |
 
 ### TB5 – bridge ⇄ external catalog
@@ -96,7 +107,7 @@ through the browser. They do not protect against the authenticated admin.
 | MITM / tampering in transit (T) | HTTPS only, with system CA validation (the bridge's `ssl.create_default_context()`). `tls.validate: false` is never set. | Unit test that settings reject `http://`. VM test against a host with a self-signed certificate fails. |
 | Malicious or compromised catalog (T/E) | Strict JSON schema and size limits, and a strict YAML parser (single document, no custom tags, alias limit). Unknown compose keys make the app unsupported. The security policy blocks dangerous options. The user sees the images and the published ports before installing. | Schema tests, YAML bomb test (billion laughs), policy vectors. |
 | Hidden changes in an update (T) | Updates re-run the policy. New findings need new confirmation. A changed compose hash invalidates old confirmations. The UI shows the image/port/mount diff. | Helper test: an update adding `cap_add` is refused without confirmation. |
-| Placeholder secrets in catalog (I) | Secret-like env keys are flagged and replaced with random values. `DefaultPassword` becomes random per app, not the CasaOS default `casaos`. | Unit test for detection. Helper test that `secrets.env` is 0600 and not in the plan echo. |
+| Placeholder secrets in catalog (I) | Secret-like env keys are flagged and replaced with random values. `DefaultPassword` becomes random per app, not the CasaOS default `casaos`. | Unit test for detection. Helper test that `secrets.json` is 0600 and not in the plan echo. |
 | Tracking / privacy (I) | Catalog fetches go from the host, not the browser. No telemetry. Screenshots load only on demand. | – |
 | Catalog outage (D) | The last good cache is kept, with a clear error state. | Unit test. |
 | Image supply chain (T) | Out of PitStore's control. The UI shows the image reference and highlights references without a tag or with `:latest`. | – (documented residual risk) |
@@ -125,4 +136,5 @@ through the browser. They do not protect against the authenticated admin.
 * Vulnerabilities in Cockpit, Podman, Docker, the kernel or container images.
 * An admin deliberately confirming a dangerous option. The warning plus
   the explicit per-finding confirmation is the control.
-* Apps that CasaOS itself installed on the same host.
+* Keeping another tool (compose, another app store) from changing containers
+  that PitStore took over. The analysis warns about it.
