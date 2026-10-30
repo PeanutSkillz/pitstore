@@ -1,12 +1,16 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 # SPDX-License-Identifier: LGPL-2.1-or-later
 """Entry point of the PitStore helper; see pitstore/main.py."""
 
 import os
 import sys
 
+sys.dont_write_bytecode = True
+
 # -I keeps the script directory and the environment out of sys.path;
-# add only the root-owned package directory next to this file
+# -B (and dont_write_bytecode) keep __pycache__ out of the package directory,
+# which dpkg could otherwise not remove; add only the root-owned package
+# directory next to this file
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 
 from pitstore.main import main  # noqa: E402

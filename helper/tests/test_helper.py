@@ -359,6 +359,13 @@ class TestRuntimeWire(unittest.TestCase):
 
 
 class TestEntryPoint(unittest.TestCase):
+    def test_entry_point_writes_no_bytecode(self):
+        path = os.path.join(os.path.dirname(HERE), "pitstore-helper")
+        with open(path) as f:
+            text = f.read()
+        self.assertTrue(text.startswith("#!/usr/bin/python3 -IB\n"))
+        self.assertLess(text.index("dont_write_bytecode = True"), text.index("from pitstore"))
+
     def run_main(self, verb, payload):
         stdin = mock.MagicMock()
         stdin.buffer.read.return_value = payload
