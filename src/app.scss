@@ -105,3 +105,9 @@
 .pitstore-adopt-intro {
     margin-block-end: var(--pf-t--global--spacer--md);
 }
+
+.pitstore-summary-value {
+    margin-block-end: var(--pf-t--global--spacer--xs);
+    font-size: var(--pf-t--global--font--size--lg);
+    white-space: nowrap;
+}

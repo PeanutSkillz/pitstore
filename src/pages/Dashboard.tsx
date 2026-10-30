@@ -121,11 +121,14 @@ const SystemSummary = () => {
                         {t.value === null
                             ? <Spinner size="md" />
                             : (
-                                <Progress
-                                    value={t.value} label={t.text} size={ProgressSize.sm}
-                                    aria-label={t.title} measureLocation="outside"
-                                    variant={t.value > 90 ? 'danger' : t.value > 75 ? 'warning' : undefined}
-                                />
+                                <>
+                                    <div className="pitstore-summary-value">{t.text}</div>
+                                    <Progress
+                                        value={t.value} size={ProgressSize.sm}
+                                        aria-label={t.title} measureLocation="none"
+                                        variant={t.value > 90 ? 'danger' : t.value > 75 ? 'warning' : undefined}
+                                    />
+                                </>
                             )}
                     </CardBody>
                 </Card>
@@ -134,7 +137,11 @@ const SystemSummary = () => {
                 <CardTitle>
                     <Button variant="link" isInline onClick={() => cockpit.jump('/system')}>{_("Uptime")}</Button>
                 </CardTitle>
-                <CardBody>{summary.uptime === null ? <Spinner size="md" /> : formatUptime(summary.uptime)}</CardBody>
+                <CardBody>
+                    {summary.uptime === null
+                        ? <Spinner size="md" />
+                        : <div className="pitstore-summary-value">{formatUptime(summary.uptime)}</div>}
+                </CardBody>
             </Card>
         </Gallery>
     );
@@ -197,10 +204,12 @@ const ForeignCard = ({ group, onTakeOver }: { group: ForeignGroup; onTakeOver: (
     return (
         <Card isCompact className="pitstore-tile" id={`foreign-${group.backend}-${group.key}`}>
             <CardHeader>
-                <CardTitle>{group.key}</CardTitle>
-                <Content component="small">
-                    {cockpit.format(_("$0 of $1 containers running"), running, group.containers.length)}
-                </Content>
+                <div>
+                    <CardTitle>{group.key}</CardTitle>
+                    <Content component="small">
+                        {cockpit.format(_("$0 of $1 containers running"), running, group.containers.length)}
+                    </Content>
+                </div>
             </CardHeader>
             <CardBody>
                 {group.managedBy && <Label isCompact color="orange" className="pitstore-state">{group.managedBy}</Label>}

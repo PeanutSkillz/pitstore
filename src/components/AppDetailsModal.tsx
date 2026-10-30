@@ -8,7 +8,6 @@ import { Content } from '@patternfly/react-core/dist/esm/components/Content/inde
 import {
     DescriptionList, DescriptionListDescription, DescriptionListGroup, DescriptionListTerm,
 } from '@patternfly/react-core/dist/esm/components/DescriptionList/index.js';
-import { Flex, FlexItem } from '@patternfly/react-core/dist/esm/layouts/Flex/index.js';
 import { Label } from '@patternfly/react-core/dist/esm/components/Label/index.js';
 import { List, ListItem } from '@patternfly/react-core/dist/esm/components/List/index.js';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@patternfly/react-core/dist/esm/components/Modal/index.js';
@@ -176,16 +175,16 @@ export const AppDetailsModal = ({ catalog, app, installed, onClose, onChanged }:
     return (
         <Modal isOpen variant="large" onClose={onClose} aria-labelledby="pitstore-app-title">
             <ModalHeader labelId="pitstore-app-title">
-                <Flex alignItems={{ default: 'alignItemsCenter' }} spaceItems={{ default: 'spaceItemsMd' }}>
-                    <FlexItem><AppIcon source={catalog.source} path={app.icon} size={56} /></FlexItem>
-                    <FlexItem>
+                <div className="pitstore-app-card-header">
+                    <AppIcon source={catalog.source} path={app.icon} size={56} />
+                    <div>
                         <Title headingLevel="h1" size="2xl" id="pitstore-app-title">{app.title}</Title>
                         <Content component="small">
                             {[app.version && cockpit.format(_("Version $0"), app.version), app.developer].filter(Boolean).join(' · ')}
                         </Content>
                         <div><Label isCompact>{app.category}</Label></div>
-                    </FlexItem>
-                </Flex>
+                    </div>
+                </div>
             </ModalHeader>
             <ModalBody>
                 {app.tagline && <Content component="p" className="pitstore-tagline">{app.tagline}</Content>}
