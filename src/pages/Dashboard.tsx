@@ -84,6 +84,11 @@ const SystemSummary = () => {
         });
     }, []);
     usePolling(refresh, SYSTEM_REFRESH_MS);
+    // a second sample soon after the first, so the CPU tile does not wait a full interval
+    useEffect(() => {
+        const timer = window.setTimeout(refresh, 1000);
+        return () => window.clearTimeout(timer);
+    }, [refresh]);
 
     const percent = (used: number, total: number) => (total > 0 ? (used / total) * 100 : 0);
     const tiles = [
@@ -286,7 +291,7 @@ export const DashboardPage = () => {
     const running = (apps ?? []).filter(a => appState(a) === 'running').length;
 
     return (
-        <Page className='pf-m-no-sidebar'>
+        <Page className='pf-m-no-sidebar no-masthead-sidebar'>
             <PageSection>
                 <Content component="h1">{_("Dashboard")}</Content>
                 {apps && apps.length > 0 && (

@@ -102,7 +102,7 @@ export const AppstorePage = () => {
     }, [catalog, search, category]);
 
     return (
-        <Page className='pf-m-no-sidebar'>
+        <Page className='pf-m-no-sidebar no-masthead-sidebar'>
             <PageSection>
                 <Content component="h1">{_("Appstore")}</Content>
                 {catalog && (
