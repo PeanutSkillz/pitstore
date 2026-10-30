@@ -207,6 +207,16 @@ export function appToIndexEntry(app: CatalogApp): Record<string, unknown> {
     };
 }
 
+/* Tips are usually {before_install: text}; some catalog entries put the
+ * locales directly in the object, of which only en_US is kept.
+ */
+function tipsOf(value: unknown): Record<string, string> {
+    if (!value || typeof value !== 'object')
+        return {};
+    return Object.fromEntries(Object.entries(value as Record<string, string>)
+            .filter(([key]) => key === 'en_US' || !/^[a-z]{2}_[A-Z]{2}$/.test(key)));
+}
+
 const LINK_FIELDS: [string, string][] = [
     ['website', 'Website'], ['repo', 'Source code'], ['support', 'Support'], ['docs', 'Documentation'],
 ];
@@ -226,7 +236,7 @@ export function parseMeta(data: unknown, appId: string): AppMeta {
         screenshots: ((meta.screenshot_link as string[] | undefined) ?? [])
                 .map(p => appPath(p, appId))
                 .filter((p): p is string => p !== null),
-        tips: (meta.tips as Record<string, string> | undefined) ?? {},
+        tips: tipsOf(meta.tips),
         releaseNote: (meta.release_note as string | undefined) ?? '',
         updatedAt: (meta.update_at as string | undefined) ?? '',
         links,

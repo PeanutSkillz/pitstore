@@ -110,6 +110,12 @@ QUnit.module('meta', () => {
         assert.deepEqual(meta.screenshots, ['/apps/org.example.a/assets/s1.webp']);
     });
 
+    QUnit.test('tolerates empty thumbnails and odd tips seen in the live catalog', assert => {
+        assert.deepEqual(parseMeta({ thumbnail: '', tips: null }, 'org.example.a').tips, {});
+        const meta = parseMeta({ thumbnail: '', tips: { before_install: 'a', en_US: 'b', zh_CN: 'c', de_DE: 'd' } }, 'org.example.a');
+        assert.deepEqual(meta.tips, { before_install: 'a', en_US: 'b' });
+    });
+
     QUnit.test('rejects oversized descriptions', assert => {
         assert.throws(() => parseMeta({ description: 'x'.repeat(70000) }, 'org.example.a'), /meta.json is invalid/);
     });
