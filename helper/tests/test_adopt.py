@@ -155,6 +155,15 @@ class TestAnalysis(AdoptTestCase):
         self.assertIn("managed-elsewhere", ids)
         self.assertFalse(analysis["recreatePossible"])
 
+    def test_label_disable_implied_by_privileged_is_not_a_separate_finding(self):
+        web, db = romm(privileged=True)
+        web["HostConfig"]["SecurityOpt"] = ["label=disable"]
+        analysis, _, _ = self.analyze(FakeRuntime([web, db]))
+        self.assertEqual([c["id"] for c in analysis["checks"] if c["severity"] == "decision"], ["romm/privileged"])
+        web["HostConfig"]["Privileged"] = False
+        analysis, _, _ = self.analyze(FakeRuntime([web, db]))
+        self.assertIn("romm/security-opt:label=disable", [c["id"] for c in analysis["checks"]])
+
     def test_host_network_cannot_be_removed(self):
         web, db = romm()
         web["HostConfig"]["NetworkMode"] = "host"

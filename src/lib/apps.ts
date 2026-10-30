@@ -27,6 +27,54 @@ export interface InstalledApp {
     };
     containers: { name: string; service: string; state: string; status: string; image: string }[];
     installedAt?: string;
+    // set for apps taken over from outside PitStore
+    adopted?: 'in-place' | 'recreated';
+}
+
+export interface ForeignGroup {
+    key: string;
+    backend: Backend;
+    managedBy: string;
+    containers: { name: string; image: string; state: string; status: string; ports: { published: number; target: number; protocol: string }[] }[];
+}
+
+export interface AdoptCorrection { id: string; label: string; recreate: boolean; confirms?: boolean; input?: 'port' }
+
+export interface AdoptCheck {
+    id: string;
+    severity: 'info' | 'warning' | 'decision';
+    title: string;
+    detail: string;
+    service: string;
+    corrections: AdoptCorrection[];
+    default: string;
+}
+
+export interface AdoptAnalysis {
+    key: string;
+    managedBy: string;
+    suggestedId: string;
+    services: { name: string; container: string; image: string }[];
+    checks: AdoptCheck[];
+    recreatePossible: boolean;
+}
+
+export async function listForeign(backends: Backend[]): Promise<{ groups: ForeignGroup[]; errors: string[] }> {
+    const groups: ForeignGroup[] = [];
+    const errors: string[] = [];
+    await Promise.all(backends.map(async backend => {
+        try {
+            const r = await callHelper<{ groups: Omit<ForeignGroup, 'backend'>[] }>(backend, 'foreign', {});
+            for (const g of r.groups)
+                groups.push({ ...g, backend });
+        } catch (e) {
+            const msg = (e as Error).message;
+            if (!/does not exist|not reachable/.test(msg))
+                errors.push(`${backend}: ${msg}`);
+        }
+    }));
+    groups.sort((a, b) => a.key.localeCompare(b.key));
+    return { groups, errors };
 }
 
 function target(backend: Backend) {

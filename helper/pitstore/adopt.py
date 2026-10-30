@@ -182,7 +182,13 @@ def reconstruct(info):
         value = hc.get(field) or ""
         if value == "host" or value.startswith("container:"):
             svc[key] = value
-    for key, field in (("cap_add", "CapAdd"), ("cap_drop", "CapDrop"), ("security_opt", "SecurityOpt"),
+    security_opt = list(hc.get("SecurityOpt") or [])
+    if hc.get("Privileged") and security_opt == ["label=disable"]:
+        # Docker adds this itself for --privileged; it is not a separate choice
+        security_opt = []
+    if security_opt:
+        svc["security_opt"] = security_opt
+    for key, field in (("cap_add", "CapAdd"), ("cap_drop", "CapDrop"),
                        ("extra_hosts", "ExtraHosts"), ("group_add", "GroupAdd"), ("links", "Links"),
                        ("volumes_from", "VolumesFrom")):
         if hc.get(field):

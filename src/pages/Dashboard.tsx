@@ -8,6 +8,8 @@ import { Content } from "@patternfly/react-core/dist/esm/components/Content/inde
 import { EmptyState, EmptyStateBody, EmptyStateFooter } from "@patternfly/react-core/dist/esm/components/EmptyState/index.js";
 import { Gallery } from '@patternfly/react-core/dist/esm/layouts/Gallery/index.js';
 import { Label } from '@patternfly/react-core/dist/esm/components/Label/index.js';
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@patternfly/react-core/dist/esm/components/Modal/index.js';
+import { Title } from '@patternfly/react-core/dist/esm/components/Title/index.js';
 import { Page, PageSection } from '@patternfly/react-core/dist/esm/components/Page/index.js';
 import { Progress, ProgressSize } from '@patternfly/react-core/dist/esm/components/Progress/index.js';
 import { Spinner } from '@patternfly/react-core/dist/esm/components/Spinner/index.js';
@@ -16,9 +18,11 @@ import { CubesIcon } from '@patternfly/react-icons/dist/esm/icons/cubes-icon.js'
 import cockpit from 'cockpit';
 import { superuser } from 'superuser';
 
+import { AdoptDialog } from '../components/AdoptDialog';
 import { AppIcon } from '../components/AppIcon';
 import {
-    adminAllowed, appState, appUrl, BACKENDS, callHelper, dockerAvailable, listInstalled, type InstalledApp,
+    adminAllowed, appState, appUrl, BACKENDS, callHelper, dockerAvailable, listForeign, listInstalled,
+    type ForeignGroup, type InstalledApp,
 } from '../lib/apps';
 import { parseSourceUrl, type SourceUrl } from '../lib/catalog/validate';
 import type { Backend } from '../lib/install';
@@ -143,11 +147,12 @@ const STATE_LABELS = {
     missing: { color: 'red', text: "No containers" },
 } as const;
 
-const AppTile = ({ app, source, busy, onAction }: {
+const AppTile = ({ app, source, busy, onAction, onRelease }: {
     app: InstalledApp;
     source: SourceUrl | null;
     busy: boolean;
     onAction: (verb: 'start' | 'stop' | 'restart') => void;
+    onRelease: () => void;
 }) => {
     const state = appState(app);
     const url = appUrl(app);
@@ -166,6 +171,7 @@ const AppTile = ({ app, source, busy, onAction }: {
             </CardHeader>
             <CardBody>
                 <Label isCompact color={label.color} className="pitstore-state">{_(label.text)}</Label>
+                {app.adopted && <Label isCompact color="purple" className="pitstore-installed">{_("Taken over")}</Label>}
                 <Content component="small" className="pitstore-backend">{backend}</Content>
             </CardBody>
             <CardFooter className="pitstore-tile-actions">
@@ -176,7 +182,34 @@ const AppTile = ({ app, source, busy, onAction }: {
                     ? <Button variant="secondary" size="sm" isDisabled={busy} onClick={() => onAction('stop')}>{_("Stop")}</Button>
                     : <Button variant="secondary" size="sm" isDisabled={busy || state === 'missing'} onClick={() => onAction('start')}>{_("Start")}</Button>}
                 <Button variant="secondary" size="sm" isDisabled={busy || state === 'missing'} onClick={() => onAction('restart')}>{_("Restart")}</Button>
+                {app.adopted === 'in-place' &&
+                    <Button variant="link" size="sm" isDisabled={busy} onClick={onRelease}>{_("Release")}</Button>}
                 {busy && <Spinner size="md" aria-label={_("Working")} />}
+            </CardFooter>
+        </Card>
+    );
+};
+
+const ForeignCard = ({ group, onTakeOver }: { group: ForeignGroup; onTakeOver: () => void }) => {
+    const running = group.containers.filter(c => c.state === 'running').length;
+    const backend = BACKENDS.find(b => b.id === group.backend)?.label ?? group.backend;
+    const ports = group.containers.flatMap(c => c.ports.map(p => `${p.published}/${p.protocol}`));
+    return (
+        <Card isCompact className="pitstore-tile" id={`foreign-${group.backend}-${group.key}`}>
+            <CardHeader>
+                <CardTitle>{group.key}</CardTitle>
+                <Content component="small">
+                    {cockpit.format(_("$0 of $1 containers running"), running, group.containers.length)}
+                </Content>
+            </CardHeader>
+            <CardBody>
+                {group.managedBy && <Label isCompact color="orange" className="pitstore-state">{group.managedBy}</Label>}
+                <Content component="small" className="pitstore-backend">{backend}</Content>
+                <Content component="small">{group.containers.map(c => c.image).join(', ')}</Content>
+                {ports.length > 0 && <Content component="small">{cockpit.format(_("Ports: $0"), ports.join(', '))}</Content>}
+            </CardBody>
+            <CardFooter className="pitstore-tile-actions">
+                <Button variant="secondary" size="sm" onClick={onTakeOver}>{_("Take over…")}</Button>
             </CardFooter>
         </Card>
     );
@@ -188,6 +221,9 @@ export const DashboardPage = () => {
     const [admin, setAdmin] = useState<boolean | null>(null);
     const [busy, setBusy] = useState<Record<string, boolean>>({});
     const [actionError, setActionError] = useState<string | null>(null);
+    const [foreign, setForeign] = useState<ForeignGroup[]>([]);
+    const [adopting, setAdopting] = useState<ForeignGroup | null>(null);
+    const [releasing, setReleasing] = useState<InstalledApp | null>(null);
 
     const load = useCallback(async () => {
         const [isAdmin, docker] = await Promise.all([adminAllowed(), dockerAvailable()]);
@@ -196,10 +232,11 @@ export const DashboardPage = () => {
             backends.push('podman-system');
         if (isAdmin && docker)
             backends.push('docker');
-        const r = await listInstalled(backends);
+        const [r, f] = await Promise.all([listInstalled(backends), listForeign(backends)]);
         setAdmin(isAdmin);
         setApps(r.apps);
-        setErrors(r.errors);
+        setForeign(f.groups);
+        setErrors([...r.errors, ...f.errors]);
     }, []);
     usePolling(load, APPS_REFRESH_MS);
 
@@ -278,11 +315,48 @@ key={`${app.backend}/${app.id}`} app={app}
                                      source={sources.get(app.app.store ?? '') ?? null}
                                      busy={busy[`${app.backend}/${app.id}`] === true}
                                      onAction={verb => act(app, verb)}
+                                     onRelease={() => setReleasing(app)}
                             />
                         ))}
                     </Gallery>
                 )}
             </PageSection>
+            {foreign.length > 0 && (
+                <PageSection>
+                    <Title headingLevel="h2" size="xl">{_("Other apps on this server")}</Title>
+                    <Content component="p" className="pitstore-tagline">
+                        {_("Containers that PitStore did not install. PitStore does not change them unless you take them over.")}
+                    </Content>
+                    <Gallery hasGutter minWidths={{ default: '260px' }} className="pitstore-gallery">
+                        {foreign.map(g => <ForeignCard key={`${g.backend}/${g.key}`} group={g} onTakeOver={() => setAdopting(g)} />)}
+                    </Gallery>
+                </PageSection>
+            )}
+            {adopting && (
+                <AdoptDialog
+group={adopting} onClose={() => setAdopting(null)}
+                             onDone={() => { setAdopting(null); load() }}
+                />
+            )}
+            {releasing && (
+                <Modal isOpen variant="small" onClose={() => setReleasing(null)} aria-labelledby="pitstore-release-title">
+                    <ModalHeader title={cockpit.format(_("Release $0?"), releasing.app.title || releasing.id)} labelId="pitstore-release-title" />
+                    <ModalBody>{_("PitStore stops managing this app. Its containers keep running and nothing is deleted.")}</ModalBody>
+                    <ModalFooter>
+                        <Button
+variant="primary" onClick={() => {
+    const app = releasing;
+    setReleasing(null);
+    callHelper(app.backend, 'release', { appId: app.id })
+            .catch(e => setActionError((e as Error).message))
+            .finally(() => load());
+}}
+                        >{_("Release")}
+                        </Button>
+                        <Button variant="link" onClick={() => setReleasing(null)}>{_("Cancel")}</Button>
+                    </ModalFooter>
+                </Modal>
+            )}
         </Page>
     );
 };

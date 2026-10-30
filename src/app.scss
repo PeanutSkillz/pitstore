@@ -86,3 +86,22 @@
 .pitstore-backend {
     margin-block-start: var(--pf-t--global--spacer--xs);
 }
+
+.pitstore-check {
+    padding-block: var(--pf-t--global--spacer--sm);
+    border-block-end: var(--pf-t--global--border--width--regular) solid var(--pf-t--global--border--color--default);
+}
+
+.pitstore-check-detail {
+    margin-block: var(--pf-t--global--spacer--xs);
+    color: var(--pf-t--global--text--color--subtle);
+}
+
+.pitstore-check-input {
+    max-inline-size: 10rem;
+    margin-inline-start: var(--pf-t--global--spacer--lg);
+}
+
+.pitstore-adopt-intro {
+    margin-block-end: var(--pf-t--global--spacer--md);
+}

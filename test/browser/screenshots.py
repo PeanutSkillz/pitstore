@@ -66,7 +66,15 @@ async def save_shot(browser, path):
 
 async def login(browser):
     """Log in to Cockpit with the test credentials from the environment."""
-    await browser.bidi("browsingContext.navigate", context=browser.top_context, url=f"{BASE}/", wait="complete")
+    for attempt in (1, 2):
+        try:
+            await browser.bidi("browsingContext.navigate", context=browser.top_context, url=f"{BASE}/", wait="complete")
+            break
+        except Exception as e:
+            # new container interfaces make Chrome report a network change once
+            if attempt == 2 or "ERR_NETWORK_CHANGED" not in str(e):
+                raise
+            await asyncio.sleep(3)
     # login.js attaches its handlers only once the form is shown
     await wait_js(browser, "() => document.readyState === 'complete' && "
                            "document.getElementById('login-button')?.offsetParent !== null")
