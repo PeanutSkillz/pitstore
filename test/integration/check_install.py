@@ -52,9 +52,10 @@ class Cockpit:
         self.context = context
         self.cookie = None
         token = base64.b64encode(f"{user}:{password}".encode()).decode()
-        status, headers, _ = self.request("/cockpit/login", {"Authorization": f"Basic {token}"})
+        status, headers, body = self.request("/cockpit/login", {"Authorization": f"Basic {token}"})
         if status != 200:
-            raise SystemExit(f"login failed: HTTP {status}")
+            # cockpit-ws explains the problem in a small JSON body
+            raise SystemExit(f"login failed: HTTP {status}: {body[:300].decode(errors='replace')}")
         for name, value in headers:
             if name.lower() == "set-cookie" and value.startswith("cockpit="):
                 self.cookie = value.split(";", 1)[0]

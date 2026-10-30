@@ -90,6 +90,8 @@ jobs:
         run: |
           getent passwd pitstore-ci || true
           systemctl status cockpit.socket cockpit.service --no-pager || true
-          sudo journalctl --no-pager -n 80 -u cockpit.service -u 'cockpit-wsinstance*' -t cockpit-session -t cockpit-ws || true
+          sudo journalctl --no-pager --since -10min | grep -iE 'cockpit|bridge|python|pitstore-ci' | grep -v 'COMMAND=' | tail -n 80 || true
+          sudo journalctl --no-pager --since -10min _UID=1002 | tail -n 40 || true
+          command -v python3 cockpit-bridge; python3 --version; dpkg -l cockpit-bridge cockpit-ws | tail -n 2
           sudo tail -n 40 /var/log/auth.log || true
           ls -la /etc/cockpit /etc/pam.d/cockpit /etc/nologin /run/nologin 2>&1 || true
