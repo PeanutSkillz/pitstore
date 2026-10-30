@@ -127,6 +127,31 @@ class TestInstall(HelperTestCase):
         self.install(compose(), update=True)
         self.assertEqual(self.port_check.call_count, 1, "the app's own port is not re-checked on update")
 
+    def test_failed_update_restores_the_previous_state(self):
+        self.install(compose())
+        adir = os.path.join(self.tmp.name, "apps", APP["id"])
+        with open(os.path.join(adir, "plan.json")) as f:
+            before = json.load(f)
+
+        def failing_create(spec):
+            raise runtime.RuntimeError_("no space left")
+        self.rt.create_container = failing_create
+        with self.assertRaises(main.HelperError):
+            self.install(compose(ports=["18090:80"]), update=True)
+        with open(os.path.join(adir, "plan.json")) as f:
+            self.assertEqual(json.load(f), before)
+
+    def test_state_is_written_before_containers_are_created(self):
+        seen = []
+        original = self.rt.__getattr__("create_container")
+
+        def create(spec):
+            seen.append(os.path.exists(os.path.join(self.tmp.name, "apps", APP["id"], "plan.json")))
+            return original(spec)
+        self.rt.create_container = create
+        self.install(compose())
+        self.assertEqual(seen, [True])
+
     def test_second_install_is_refused(self):
         self.install(compose())
         with self.assertRaises(main.HelperError):

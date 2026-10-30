@@ -19,6 +19,7 @@ import pwd
 import re
 import secrets
 import shutil
+import signal
 import socket
 import string
 import sys
@@ -38,8 +39,12 @@ class HelperError(Exception):
 
 
 def emit(obj):
-    sys.stdout.write(json.dumps(obj) + "\n")
-    sys.stdout.flush()
+    # the page may have gone away (browser closed); finish the work anyway
+    try:
+        sys.stdout.write(json.dumps(obj) + "\n")
+        sys.stdout.flush()
+    except (BrokenPipeError, OSError):
+        pass
 
 
 def base_dir():
@@ -209,13 +214,33 @@ def do_install(req, rt, progress):
         progress(f"Pulling {image}")
         rt.pull(image, lambda line: progress(line[:200]))
 
-    if is_update:
-        progress("Removing the old containers")
-        for c in reversed(app_containers(rt, app_id)):
-            rt.remove_container(c["id"])
+    # record the new state before touching containers: if this process is
+    # interrupted (browser closed), the app stays known and can be repaired
+    plan_file = os.path.join(adir, "plan.json")
+    confirmations_file = os.path.join(adir, "confirmations.json")
+    saved = {f: read_json(f) for f in (plan_file, confirmations_file, secrets_file)}
+    os.makedirs(adir, mode=0o700, exist_ok=True)
+    write_json(secrets_file, secret_values, mode=0o600)
+    confirmations = read_json(confirmations_file, [])
+    if record["findings"]:
+        confirmations.append(record)
+    write_json(confirmations_file, confirmations)
+    write_json(plan_file, {
+        "app": app,
+        "backend": rt.name,
+        "compose": compose,            # with placeholders, never the secret values
+        "composeSha256": sha,
+        "order": [c.service for c in spec.containers],
+        "ports": sorted({(p.host_port, p.protocol) for c in spec.containers for p in c.ports}),
+        "installedAt": record["confirmedAt"],
+    })
 
     created = []
     try:
+        if is_update:
+            progress("Removing the old containers")
+            for c in reversed(app_containers(rt, app_id)):
+                rt.remove_container(c["id"])
         labels = {LABEL_APP: app_id}
         if spec.network:
             rt.create_network(spec.network, labels)
@@ -227,30 +252,21 @@ def do_install(req, rt, progress):
         for cid, c in zip(created, spec.containers):
             progress(f"Starting {c.service}")
             rt.start(cid)
-    except (RuntimeError_, HelperError) as e:
+    except (RuntimeError_, HelperError, OSError) as e:
         progress("Installation failed, removing the new containers")
         for cid in reversed(created):
             try:
                 rt.remove_container(cid)
             except RuntimeError_:
                 pass
+        if is_update:
+            for f, data in saved.items():
+                if data is not None:
+                    write_json(f, data, mode=0o600 if f == secrets_file else 0o644)
+        else:
+            shutil.rmtree(adir, ignore_errors=True)
         raise HelperError(redact(str(e), hidden)) from None
 
-    os.makedirs(adir, mode=0o700, exist_ok=True)
-    write_json(secrets_file, secret_values, mode=0o600)
-    confirmations = read_json(os.path.join(adir, "confirmations.json"), [])
-    if record["findings"]:
-        confirmations.append(record)
-    write_json(os.path.join(adir, "confirmations.json"), confirmations)
-    write_json(os.path.join(adir, "plan.json"), {
-        "app": app,
-        "backend": rt.name,
-        "compose": compose,            # with placeholders, never the secret values
-        "composeSha256": sha,
-        "order": [c.service for c in spec.containers],
-        "ports": sorted({(p.host_port, p.protocol) for c in spec.containers for p in c.ports}),
-        "installedAt": record["confirmedAt"],
-    })
     return {"app": app_id, "containers": len(created), "updated": is_update}
 
 
@@ -353,6 +369,8 @@ def main(argv):
         emit({"type": "error", "message": "usage: pitstore-helper VERB < request.json"})
         return 2
     os.umask(0o022)
+    # keep going when the Cockpit session ends in the middle of a request
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
     raw = sys.stdin.buffer.read(MAX_REQUEST + 1)
     if len(raw) > MAX_REQUEST:
         emit({"type": "error", "message": "request is too large"})

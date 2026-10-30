@@ -139,8 +139,10 @@ async def main(outdir):
         await wait_text(browser, "Run with")
         await shot("update-dialog")
         await click(browser, "Update")
-        await wait_js(browser, """() => !document.body.innerText.includes('Run with') &&
-            document.body.innerText.includes('Running')""", timeout=600)
+        # the dialog closes itself when the update has finished
+        await wait_js(browser, """() => !document.querySelector('.pitstore-progress') &&
+            !document.body.innerText.includes('Run with') && document.body.innerText.includes('Running')""",
+                      timeout=600)
         plan = json.loads(PLAN.read_text())
         if plan["app"]["contentHash"] != current_hash:
             raise SystemExit("FAILED: update did not record the catalog version")
