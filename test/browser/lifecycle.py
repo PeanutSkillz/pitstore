@@ -33,7 +33,8 @@ ARGS = parser.parse_args()
 APP_ID = ARGS.app
 FRAME = "cockpit1:localhost/pitstore/appstore"
 SYSTEM = ARGS.backend != "podman-user"
-PLAN = (Path("/var/lib/pitstore/apps") if SYSTEM else Path.home() / ".local/share/pitstore/apps") / APP_ID / "plan.json"
+PLAN = ((Path("/var/lib/pitstore") if SYSTEM else Path.home() / ".local/share/pitstore") / "apps"
+        / ARGS.backend.split("-")[0] / APP_ID / "plan.json")
 
 
 def read_plan():

@@ -89,14 +89,14 @@ class TestInstall(HelperTestCase):
         with self.assertRaisesRegex(ValidationError, "web/privileged"):
             self.install(compose(privileged=True))
         self.assertEqual(self.rt.calls, [])
-        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "apps", APP["id"])))
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "apps", "podman", APP["id"])))
 
     def test_privileged_installs_after_confirmation_and_is_recorded(self):
         self.install(compose(privileged=True), confirmed=["web/privileged"])
         self.assertIn("create_container", self.runtime_calls())
         spec = [c[1][0] for c in self.rt.calls if c[0] == "create_container"][0]
         self.assertTrue(spec.privileged)
-        with open(os.path.join(self.tmp.name, "apps", APP["id"], "confirmations.json")) as f:
+        with open(os.path.join(self.tmp.name, "apps", "podman", APP["id"], "confirmations.json")) as f:
             records = json.load(f)
         self.assertEqual(records[0]["findings"], ["web/privileged"])
         self.assertEqual(records[0]["composeSha256"], "a" * 64)
@@ -129,7 +129,7 @@ class TestInstall(HelperTestCase):
 
     def test_failed_update_restores_the_previous_state(self):
         self.install(compose())
-        adir = os.path.join(self.tmp.name, "apps", APP["id"])
+        adir = os.path.join(self.tmp.name, "apps", "podman", APP["id"])
         with open(os.path.join(adir, "plan.json")) as f:
             before = json.load(f)
 
@@ -146,11 +146,21 @@ class TestInstall(HelperTestCase):
         original = self.rt.__getattr__("create_container")
 
         def create(spec):
-            seen.append(os.path.exists(os.path.join(self.tmp.name, "apps", APP["id"], "plan.json")))
+            seen.append(os.path.exists(os.path.join(self.tmp.name, "apps", "podman", APP["id"], "plan.json")))
             return original(spec)
         self.rt.create_container = create
         self.install(compose())
         self.assertEqual(seen, [True])
+
+    def test_backends_keep_separate_state(self):
+        self.install(compose())
+        docker = FakeRuntime()
+        docker.name = "docker"
+        req = {"app": APP, "compose": compose(), "composeSha256": "a" * 64, "confirmed": []}
+        with self.assertRaisesRegex(main.HelperError, "already installed with podman"):
+            main.do_install(req, docker, self.progress.append)
+        self.assertEqual(main.do_list(docker)["apps"], [])
+        self.assertEqual([a["id"] for a in main.do_list(self.rt)["apps"]], [APP["id"]])
 
     def test_second_install_is_refused(self):
         self.install(compose())
@@ -166,7 +176,7 @@ class TestInstall(HelperTestCase):
         self.assertRegex(env["PASSWORD"], r"^[A-Za-z0-9]{24}$")
         self.assertRegex(env["APP_KEY"], r"^[A-Za-z0-9]{32}$")
         self.assertEqual(env["URL"], f"postgres://u:{env['PASSWORD']}@db/x")
-        adir = os.path.join(self.tmp.name, "apps", APP["id"])
+        adir = os.path.join(self.tmp.name, "apps", "podman", APP["id"])
         self.assertEqual(stat.S_IMODE(os.stat(os.path.join(adir, "secrets.json")).st_mode), 0o600)
         with open(os.path.join(adir, "plan.json")) as f:
             plan = f.read()
@@ -201,7 +211,7 @@ class TestInstall(HelperTestCase):
         with self.assertRaisesRegex(main.HelperError, "boom"):
             self.install(compose())
         self.assertEqual(self.rt.containers, [])
-        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "apps", APP["id"], "plan.json")))
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "apps", "podman", APP["id"], "plan.json")))
 
 
 class TestInputValidation(unittest.TestCase):

@@ -131,7 +131,7 @@ open question Q1.
 |---|---|---|---|
 | Catalog cache | `~/.cache/pitstore/catalog/` | same (per Cockpit user) | `index.json`, `store.json`, per-app `meta.json` + compose, keyed by `content_hash` |
 | Settings | `~/.config/pitstore/settings.json` | same | store URL, preferred backend, locale |
-| App state | `~/.local/share/pitstore/apps/<id>/` | `/var/lib/pitstore/apps/<id>/` | `plan.json` (the applied plan), `confirmations.json`, `secrets.env` (mode 0600) |
+| App state | `~/.local/share/pitstore/apps/podman/<id>/` | `/var/lib/pitstore/apps/<podman|docker>/<id>/` (per backend: both run as root) | `plan.json` (the applied plan), `confirmations.json`, `secrets.json` (mode 0600) |
 | App data | `~/.local/share/pitstore/data/<id>/` | `/var/lib/pitstore/data/<id>/` (configurable data root) | bind-mount sources |
 
 Containers, networks and volumes created by PitStore carry labels

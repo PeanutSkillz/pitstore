@@ -54,8 +54,15 @@ def base_dir():
     return os.path.join(pwd.getpwuid(os.geteuid()).pw_dir, ".local", "share", "pitstore")
 
 
-def app_dir(app_id):
-    return os.path.join(base_dir(), "apps", check_app_id(app_id))
+BACKENDS = ("podman", "docker")
+
+
+def app_dir(app_id, backend):
+    """State of one app; separate per backend, because system Podman and
+    Docker both run as root and share the base directory."""
+    if backend not in BACKENDS:
+        raise HelperError(f"unknown backend {backend!r}")
+    return os.path.join(base_dir(), "apps", backend, check_app_id(app_id))
 
 
 def data_dir(app_id):
@@ -172,8 +179,11 @@ def do_install(req, rt, progress):
         raise HelperError("invalid confirmations")
     is_update = req.get("update") is True
 
-    adir = app_dir(app_id)
+    adir = app_dir(app_id, rt.name)
     old_plan = read_json(os.path.join(adir, "plan.json"))
+    for other in BACKENDS:
+        if other != rt.name and os.path.exists(os.path.join(app_dir(app_id, other), "plan.json")):
+            raise HelperError(f"{app_id} is already installed with {other}")
     if is_update and not old_plan:
         raise HelperError(f"{app_id} is not installed")
     if not is_update and (old_plan or app_containers(rt, app_id)):
@@ -272,7 +282,7 @@ def do_install(req, rt, progress):
 
 def do_lifecycle(req, rt, action):
     app_id = check_app_id(req.get("appId"))
-    plan = read_json(os.path.join(app_dir(app_id), "plan.json"), {})
+    plan = read_json(os.path.join(app_dir(app_id, rt.name), "plan.json"), {})
     containers = {c["labels"].get(LABEL_SERVICE): c for c in app_containers(rt, app_id)}
     if not containers:
         raise HelperError(f"{app_id} has no containers")
@@ -300,7 +310,7 @@ def do_remove(req, rt, progress):
         if os.path.isdir(ddir) and not os.path.islink(ddir):
             progress(f"Deleting {ddir}")
             shutil.rmtree(ddir)
-    adir = app_dir(app_id)
+    adir = app_dir(app_id, rt.name)
     if os.path.isdir(adir) and not os.path.islink(adir):
         shutil.rmtree(adir)
     return {"app": app_id, "dataDeleted": delete_data}
@@ -317,7 +327,7 @@ def do_list(rt):
         entry = apps.setdefault(app_id, {"id": app_id, "containers": []})
         entry["containers"].append({k: c[k] for k in ("name", "state", "status", "image")} |
                                    {"service": c["labels"].get(LABEL_SERVICE, "")})
-    apps_root = os.path.join(base_dir(), "apps")
+    apps_root = os.path.join(base_dir(), "apps", rt.name)
     for app_id in sorted(os.listdir(apps_root)) if os.path.isdir(apps_root) else []:
         try:
             check_app_id(app_id)
@@ -333,7 +343,7 @@ def do_list(rt):
 
 def do_get(req):
     app_id = check_app_id(req.get("appId"))
-    plan = read_json(os.path.join(app_dir(app_id), "plan.json"))
+    plan = read_json(os.path.join(app_dir(app_id, req.get("backend")), "plan.json"))
     if not plan:
         raise HelperError(f"{app_id} is not installed")
     return {"plan": plan, "dataDir": data_dir(app_id)}
