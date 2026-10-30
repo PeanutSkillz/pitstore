@@ -1,10 +1,15 @@
 version: 2
 updates:
+  # Monthly, and only patch/minor releases. Major releases need their own
+  # work and testing. PatternFly only gets patch releases: its packages must
+  # stay on one minor version together (mixed versions broke the layout), so
+  # minor updates are done by hand and tested in a VM. These rules do not
+  # hold back security updates (Dependabot alerts).
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
+      interval: monthly
+    open-pull-requests-limit: 5
     groups:
       patternfly:
         patterns: ["@patternfly/*"]
@@ -12,8 +17,16 @@ updates:
         patterns: ["eslint*", "@typescript-eslint/*"]
       stylelint:
         patterns: ["stylelint*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@patternfly/*"
+        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
