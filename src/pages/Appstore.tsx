@@ -36,7 +36,7 @@ const AppCard = ({ catalog, app, installed, onOpen }: {
     <Card isCompact isClickable className="pitstore-app-card" id={`app-${app.id}`}>
         <CardHeader selectableActions={{ onClickAction: onOpen, selectableActionAriaLabelledby: `app-title-${app.id}` }}>
             <div className="pitstore-app-card-header">
-                <AppIcon catalog={catalog} path={app.icon} />
+                <AppIcon source={catalog.source} path={app.icon} />
                 <CardTitle id={`app-title-${app.id}`}>{app.title}</CardTitle>
             </div>
         </CardHeader>

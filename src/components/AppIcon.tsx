@@ -3,23 +3,24 @@
 import React, { useEffect, useState } from 'react';
 import { CubesIcon } from '@patternfly/react-icons/dist/esm/icons/cubes-icon.js';
 
-import { loadImage, type Catalog } from '../lib/catalog/catalog';
+import { loadImage } from '../lib/catalog/catalog';
+import type { SourceUrl } from '../lib/catalog/validate';
 
 /* App icon, fetched through the bridge and validated; a placeholder while
  * loading and when the icon is missing or rejected.
  */
-export const AppIcon = ({ catalog, path, size = 48 }: { catalog: Catalog; path: string | null; size?: number }) => {
+export const AppIcon = ({ source, path, size = 48 }: { source: SourceUrl | null; path: string | null; size?: number }) => {
     const [src, setSrc] = useState<string | null>(null);
 
     useEffect(() => {
         let alive = true;
         setSrc(null);
-        loadImage(catalog, path).then(url => {
+        (source ? loadImage(source, path) : Promise.resolve(null)).then(url => {
             if (alive)
                 setSrc(url);
         });
         return () => { alive = false };
-    }, [catalog, path]);
+    }, [source, path]);
 
     const style = { width: size, height: size };
     return src

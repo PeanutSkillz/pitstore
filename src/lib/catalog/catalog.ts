@@ -110,13 +110,13 @@ export function loadCompose(catalog: Catalog, app: CatalogApp): Promise<{ text: 
 }
 
 /* Fetch and validate a catalog image; null when it is missing or rejected. */
-export function loadImage(catalog: Catalog, path: string | null): Promise<string | null> {
+export function loadImage(source: SourceUrl, path: string | null): Promise<string | null> {
     if (!path)
         return Promise.resolve(null);
-    const key = `${catalog.source.href}|${path}`;
+    const key = `${source.href}|${path}`;
     let p = imageCache.get(key);
     if (!p) {
-        p = fetchBytes(catalog.source, path, MAX_IMAGE_BYTES)
+        p = fetchBytes(source, path, MAX_IMAGE_BYTES)
                 .then(({ bytes, contentType }) => toDataUrl(bytes, detectImage(bytes, contentType)))
                 .catch(e => {
                     console.warn(`pitstore: image ${path} rejected:`, (e as Error).message);

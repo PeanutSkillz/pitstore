@@ -56,6 +56,23 @@ grep -q "blocked options were not confirmed: web/privileged" "$out/priv.json.out
 test "$(as_user pitstore-test podman ps -a -q | wc -l)" = 0
 echo "ok   refused, no containers created"
 
+step "Dashboard: tile actions and system summary (rootless Podman)"
+cat > /tmp/dash.json <<'REQUEST'
+{"scope": "user", "backend": "podman",
+ "app": {"id": "org.pitstore.dashtest", "title": "Dashboard test", "version": "1.27",
+         "store": "https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages",
+         "icon": "/apps/com.icewhale.bentopdf/assets/icon.svg", "portMap": "18083", "scheme": "http", "index": "/"},
+ "compose": {"name": "dashtest", "services": {"web": {"image": "docker.io/library/nginx:1.27-alpine",
+             "ports": ["18083:80"]}}, "x-casaos": {"id": "org.pitstore.dashtest", "main": "web"}},
+ "composeSha256": "2222222222222222222222222222222222222222222222222222222222222222", "confirmed": []}
+REQUEST
+chmod 0644 /tmp/dash.json
+as_user pitstore-test /usr/share/cockpit/pitstore/helper/pitstore-helper install < /tmp/dash.json | tail -1
+install -d -o pitstore-test "$out/dashboard"
+(cd "$out/dashboard" && as_user pitstore-test python3 "$tests/test/browser/dashboard.py" "$out/dashboard" org.pitstore.dashtest)
+echo '{"scope": "user", "backend": "podman", "appId": "org.pitstore.dashtest", "deleteData": true}' |
+    as_user pitstore-test /usr/share/cockpit/pitstore/helper/pitstore-helper remove | tail -1
+
 for backend in podman-user podman-system docker; do
     user=pitstore-test
     [ "$backend" = podman-user ] || user=pitstore-admin

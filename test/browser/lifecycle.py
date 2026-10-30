@@ -15,13 +15,12 @@ import asyncio
 import json
 import subprocess
 import os
-import ssl
 import sys
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
+from lifecycle_helpers import http_status  # noqa: E402
 from screenshots import BASE, login, run_js, save_shot, test_password, wait_js  # noqa: E402
 from webdriver_bidi import ChromiumBidi  # noqa: E402
 
@@ -125,15 +124,6 @@ async def enable_admin(browser):
         }""", test_password())
         await asyncio.sleep(1)
     raise TimeoutError("administrative access could not be enabled")
-
-
-def http_status(url):
-    ctx = ssl.create_default_context()
-    try:
-        with urllib.request.urlopen(url, timeout=10, context=ctx) as r:
-            return r.status
-    except Exception as e:
-        return str(e)
 
 
 async def main(outdir):

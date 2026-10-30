@@ -54,7 +54,7 @@ const Screenshots = ({ catalog, paths }: { catalog: Catalog; paths: string[] }) 
     const [urls, setUrls] = useState<string[]>([]);
     useEffect(() => {
         let alive = true;
-        Promise.all(paths.slice(0, 5).map(p => loadImage(catalog, p))).then(list => {
+        Promise.all(paths.slice(0, 5).map(p => loadImage(catalog.source, p))).then(list => {
             if (alive)
                 setUrls(list.filter((u): u is string => u !== null));
         });
@@ -177,7 +177,7 @@ export const AppDetailsModal = ({ catalog, app, installed, onClose, onChanged }:
         <Modal isOpen variant="large" onClose={onClose} aria-labelledby="pitstore-app-title">
             <ModalHeader labelId="pitstore-app-title">
                 <Flex alignItems={{ default: 'alignItemsCenter' }} spaceItems={{ default: 'spaceItemsMd' }}>
-                    <FlexItem><AppIcon catalog={catalog} path={app.icon} size={56} /></FlexItem>
+                    <FlexItem><AppIcon source={catalog.source} path={app.icon} size={56} /></FlexItem>
                     <FlexItem>
                         <Title headingLevel="h1" size="2xl" id="pitstore-app-title">{app.title}</Title>
                         <Content component="small">
