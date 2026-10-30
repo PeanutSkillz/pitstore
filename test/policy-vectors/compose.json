@@ -898,5 +898,62 @@
   "unsupported": [
    "networks.inner.internal"
   ]
+ },
+ {
+  "description": "read-only time zone files are allowed",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx",
+     "volumes": [
+      "/etc/localtime:/etc/localtime:ro",
+      "/etc/timezone:/etc/timezone:ro,z",
+      {
+       "type": "bind",
+       "source": "/etc/localtime",
+       "target": "/l",
+       "read_only": true
+      }
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [],
+  "unsupported": []
+ },
+ {
+  "description": "writable or other /etc files stay blocked",
+  "compose": {
+   "name": "demo",
+   "services": {
+    "web": {
+     "image": "nginx",
+     "volumes": [
+      "/etc/localtime:/etc/localtime",
+      "/etc/timezone:/tz:rw",
+      "/etc/passwd:/p:ro",
+      "/etc:/e:ro"
+     ]
+    }
+   },
+   "x-casaos": {
+    "id": "org.example.demo",
+    "main": "web",
+    "port_map": "8080"
+   }
+  },
+  "findings": [
+   "web/mount-sensitive:/etc",
+   "web/mount-sensitive:/etc/localtime",
+   "web/mount-sensitive:/etc/passwd",
+   "web/mount-sensitive:/etc/timezone"
+  ],
+  "unsupported": []
  }
 ]

@@ -42,6 +42,8 @@ export const SENSITIVE_PATHS = [
     '/var/lib/docker', '/var/lib/containers',
 ];
 export const RUNTIME_SOCKETS = ['docker.sock', 'podman.sock', 'containerd.sock'];
+// read-only mounts of these files only reveal the host time zone
+export const READ_ONLY_EXCEPTIONS = ['/etc/localtime', '/etc/timezone'];
 
 const TOP_LEVEL_KEYS = new Set(['name', 'services', 'x-casaos', 'networks', 'volumes', 'version']);
 
@@ -92,18 +94,25 @@ function isUnder(path: string, prefix: string): boolean {
 }
 
 /* Parse one entry of services.<s>.volumes into a mount description. */
-export function parseVolume(entry: Json): { type: 'bind' | 'volume' | 'tmpfs'; source: string; target: string } | null {
+export interface Mount {
+    type: 'bind' | 'volume' | 'tmpfs';
+    source: string;
+    target: string;
+    readOnly: boolean;
+}
+
+export function parseVolume(entry: Json): Mount | null {
     if (typeof entry === 'string') {
         const parts = entry.split(':');
         if (parts.length === 1)
-            return { type: 'volume', source: '', target: parts[0] };
+            return { type: 'volume', source: '', target: parts[0], readOnly: false };
         if (parts.length > 3)
             return null;
-        const [source, target] = parts;
+        const [source, target, mode = ''] = parts;
         if (!source || !target)
             return null;
         const type = source.startsWith('/') || source.startsWith('.') || source.startsWith('~') ? 'bind' : 'volume';
-        return { type, source, target };
+        return { type, source, target, readOnly: mode.split(',').includes('ro') };
     }
     if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
         const type = entry.type;
@@ -113,7 +122,7 @@ export function parseVolume(entry: Json): { type: 'bind' | 'volume' | 'tmpfs'; s
             return null;
         if (type === 'bind' && !source)
             return null;
-        return { type, source, target };
+        return { type, source, target, readOnly: entry.read_only === true };
     }
     return null;
 }
@@ -259,6 +268,8 @@ export function evaluatePolicy(compose: ComposeFile): PolicyResult {
                 finding(svc, 'mount-runtime-socket', source);
                 continue;
             }
+            if (mount.readOnly && READ_ONLY_EXCEPTIONS.includes(source))
+                continue;
             // a system directory, anything below it, or a parent of it (like / or /var)
             if (SENSITIVE_PATHS.some(s => isUnder(source, s) || isUnder(s, source)))
                 finding(svc, 'mount-sensitive', source);

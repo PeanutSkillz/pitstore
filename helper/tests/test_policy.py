@@ -42,9 +42,10 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(policy.normalize_path("/"), "/")
 
     def test_parse_volume(self):
-        self.assertEqual(policy.parse_volume("/a:/b:ro"), ("bind", "/a", "/b"))
-        self.assertEqual(policy.parse_volume("data:/b"), ("volume", "data", "/b"))
-        self.assertEqual(policy.parse_volume("/anon"), ("volume", "", "/anon"))
+        self.assertEqual(policy.parse_volume("/a:/b:ro"), ("bind", "/a", "/b", True))
+        self.assertEqual(policy.parse_volume("/a:/b:rw,z"), ("bind", "/a", "/b", False))
+        self.assertEqual(policy.parse_volume("data:/b"), ("volume", "data", "/b", False))
+        self.assertEqual(policy.parse_volume("/anon"), ("volume", "", "/anon", False))
         self.assertIsNone(policy.parse_volume(":/b"))
         self.assertIsNone(policy.parse_volume({"type": "bind", "target": "/b"}))
 

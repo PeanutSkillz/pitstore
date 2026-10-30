@@ -1,0 +1,14 @@
+#!/usr/bin/python3 -I
+# SPDX-License-Identifier: LGPL-2.1-or-later
+"""Entry point of the PitStore helper; see pitstore/main.py."""
+
+import os
+import sys
+
+# -I keeps the script directory and the environment out of sys.path;
+# add only the root-owned package directory next to this file
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+
+from pitstore.main import main  # noqa: E402
+
+sys.exit(main(sys.argv))

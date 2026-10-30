@@ -19,6 +19,8 @@ SENSITIVE_PATHS = (
     "/var/lib/docker", "/var/lib/containers",
 )
 RUNTIME_SOCKETS = ("docker.sock", "podman.sock", "containerd.sock")
+# read-only mounts of these files only reveal the host time zone
+READ_ONLY_EXCEPTIONS = ("/etc/localtime", "/etc/timezone")
 
 TOP_LEVEL_KEYS = {"name", "services", "x-casaos", "networks", "volumes", "version"}
 
@@ -72,18 +74,19 @@ def is_under(path, prefix):
 
 
 def parse_volume(entry):
-    """Parse one services.<s>.volumes entry into (type, source, target) or None."""
+    """Parse one services.<s>.volumes entry into (type, source, target, read_only) or None."""
     if isinstance(entry, str):
         parts = entry.split(":")
         if len(parts) == 1:
-            return ("volume", "", parts[0])
+            return ("volume", "", parts[0], False)
         if len(parts) > 3:
             return None
         source, target = parts[0], parts[1]
+        mode = parts[2] if len(parts) == 3 else ""
         if not source or not target:
             return None
         kind = "bind" if source.startswith(("/", ".", "~")) else "volume"
-        return (kind, source, target)
+        return (kind, source, target, "ro" in mode.split(","))
     if isinstance(entry, dict):
         kind = entry.get("type")
         source = entry.get("source") if isinstance(entry.get("source"), str) else ""
@@ -92,7 +95,7 @@ def parse_volume(entry):
             return None
         if kind == "bind" and not source:
             return None
-        return (kind, source, target)
+        return (kind, source, target, entry.get("read_only") is True)
     return None
 
 
@@ -237,7 +240,7 @@ def evaluate(compose):
             if mount is None:
                 reject(f"{p}.volumes", "invalid volume entry")
                 continue
-            kind, source, _target = mount
+            kind, source, _target, read_only = mount
             if kind != "bind":
                 continue
             if not source.startswith("/"):
@@ -246,6 +249,8 @@ def evaluate(compose):
             source = normalize_path(source)
             if source.split("/")[-1] in RUNTIME_SOCKETS:
                 finding(svc, "mount-runtime-socket", source)
+                continue
+            if read_only and source in READ_ONLY_EXCEPTIONS:
                 continue
             # a system directory, anything below it, or a parent of it (like / or /var)
             if any(is_under(source, s) or is_under(s, source) for s in SENSITIVE_PATHS):
