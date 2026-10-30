@@ -64,6 +64,10 @@ jobs:
           path: out
       - name: Install Cockpit
         run: |
+          # GitHub's runner images set XDG_CONFIG_HOME=/home/runner/.config for
+          # every login in /etc/environment; the test user's cockpit-bridge then
+          # reads the runner's (unreadable) config and exits
+          sudo sed -i '/^XDG_CONFIG_HOME=/d' /etc/environment
           sudo apt-get update
           sudo apt-get install -y ${{ matrix.cockpit }}
           sudo systemctl enable --now cockpit.socket
