@@ -264,6 +264,16 @@ class TestInputValidation(unittest.TestCase):
 
 class _Handler(http.server.BaseHTTPRequestHandler):
     requests = []
+    api_version = "1.51"
+
+    def do_GET(self):
+        _Handler.requests.append((self.command, self.path, b""))
+        payload = json.dumps({"ApiVersion": _Handler.api_version, "MinAPIVersion": "1.44"}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length") or 0)
@@ -317,6 +327,18 @@ class TestRuntimeWire(unittest.TestCase):
         self.assertEqual(body["env"], {"X": "'; rm -rf / #"})
         self.assertEqual(body["portmappings"], [{"host_port": 18080, "container_port": 80, "protocol": "tcp"}])
         self.assertEqual(body["Networks"], {"pitstore-org.example.demo": {"aliases": ["web"]}})
+
+    def test_docker_uses_the_daemon_api_version(self):
+        rt = runtime.DockerRuntime(self.path)
+        rt.start("abc")
+        self.assertEqual(_Handler.requests[0][1], "/version")
+        self.assertEqual(_Handler.requests[1][1], "/v1.51/containers/abc/start")
+        _Handler.api_version = "1.41"
+        try:
+            with self.assertRaisesRegex(runtime.RuntimeError_, "not supported"):
+                runtime.DockerRuntime(self.path)
+        finally:
+            _Handler.api_version = "1.51"
 
     def test_socket_checks(self):
         runtime.check_socket(self.path, os.getuid())

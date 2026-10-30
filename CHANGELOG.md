@@ -26,5 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shared test vectors: privileged mode, host namespaces, capabilities, devices,
   security options, kernel sysctls and mounts of runtime sockets or system
   directories are blocked by default.
+- Install, update, remove, open, start, stop and restart apps from the Appstore,
+  on rootless Podman, system Podman (administrative access) or Docker.
+- `pitstore-helper`: server-side validation of every install (policy,
+  confirmations, ports, paths, environment, images) before the runtime API
+  is called; generated secrets; per-app confirmation records.
+- Read-only mounts of `/etc/localtime` and `/etc/timezone` are allowed.
 - Icons and screenshots are validated (magic bytes, size, SVG filter) and shown
   as data: URLs.

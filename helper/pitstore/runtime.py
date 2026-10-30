@@ -9,6 +9,7 @@ segment and query value is percent-encoded. No command strings anywhere.
 import http.client
 import json
 import os
+import re
 import socket
 import stat
 from urllib.parse import quote, urlencode
@@ -285,9 +286,17 @@ class PodmanRuntime:
 
 class DockerRuntime:
     name = "docker"
+    # oldest Engine API this code is written against (Docker 25)
+    MIN_API = (1, 44)
 
     def __init__(self, socket_path=DOCKER_SOCKET):
-        self.client = Client(socket_path, "/v1.41")
+        # use the daemon's own API version: recent Docker refuses old clients
+        _, info = Client(socket_path, "").request("GET", "/version")
+        version = str((info or {}).get("ApiVersion", ""))
+        m = re.match(r"^([0-9]{1,2})\.([0-9]{1,3})$", version)
+        if not m or (int(m.group(1)), int(m.group(2))) < self.MIN_API:
+            raise RuntimeError_(f"Docker API version {version or 'unknown'} is not supported (1.44 or newer is needed)")
+        self.client = Client(socket_path, f"/v{version}")
 
     def ping(self):
         _, info = self.client.request("GET", "/version")
@@ -310,7 +319,7 @@ class DockerRuntime:
     def create_network(self, name, labels):
         _, nets = self.client.request("GET", "/networks", {"filters": json.dumps({"name": [name]})})
         if not any(n.get("Name") == name for n in nets or []):
-            self.client.request("POST", "/networks/create", body={"Name": name, "Labels": labels, "CheckDuplicate": True})
+            self.client.request("POST", "/networks/create", body={"Name": name, "Labels": labels})
 
     def create_volume(self, name, labels):
         self.client.request("POST", "/volumes/create", body={"Name": name, "Labels": labels})

@@ -14,8 +14,18 @@ if ! id pitstore-test >/dev/null 2>&1; then
     printf 'pitstore-test:%s\n' "$(cat /root/pitstore-test.pw)" | chpasswd
 fi
 
+# admin user for the system Podman and Docker backends; passwordless sudo so
+# the tests can inspect /var/lib/pitstore (acceptable in a throwaway VM only)
+if ! id pitstore-admin >/dev/null 2>&1; then
+    useradd -m -s /bin/bash -G sudo pitstore-admin
+    (umask 077; openssl rand -hex 16 | tr -d '\n' > /root/pitstore-admin.pw)
+    printf 'pitstore-admin:%s\n' "$(cat /root/pitstore-admin.pw)" | chpasswd
+    echo 'pitstore-admin ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/pitstore-admin
+    chmod 0440 /etc/sudoers.d/pitstore-admin
+fi
+
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends python3-aiohttp unzip curl \
+apt-get install -y -qq --no-install-recommends python3-aiohttp unzip curl docker.io \
     libnss3 libatk-bridge2.0-0t64 libgbm1 libasound2t64 libxkbcommon0 libxcomposite1 libxdamage1 \
     libxrandr2 libpango-1.0-0 libcups2t64 libxfixes3 fonts-dejavu-core fonts-liberation >/dev/null
 

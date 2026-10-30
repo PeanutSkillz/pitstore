@@ -34,6 +34,15 @@ async def run_js(browser, code, *args):
     return result["result"]
 
 
+def test_password():
+    """The test password, from a file (keeps it out of command lines and logs) or the environment."""
+    path = os.environ.get("PITSTORE_TEST_PASSWORD_FILE")
+    if path:
+        with open(path) as f:
+            return f.read().strip()
+    return os.environ["PITSTORE_TEST_PASSWORD"]
+
+
 async def wait_js(browser, code, timeout=60):
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
@@ -45,7 +54,7 @@ async def wait_js(browser, code, timeout=60):
             pass  # the context may be navigating; calls can also time out then
         await asyncio.sleep(0.25)
     shot = await browser.bidi("browsingContext.captureScreenshot", context=browser.top_context)
-    Path("timeout.png").write_bytes(base64.b64decode(shot["data"]))
+    Path(os.environ.get("PITSTORE_SHOT_DIR", "."), "timeout.png").write_bytes(base64.b64decode(shot["data"]))
     raise TimeoutError(f"condition not met: {code} (screenshot in timeout.png)")
 
 
@@ -67,7 +76,7 @@ async def login(browser):
             document.getElementById('login-password-input').value = password;
             document.getElementById('login-button').click();
             return true;
-        }""", os.environ["PITSTORE_TEST_USER"], os.environ["PITSTORE_TEST_PASSWORD"])
+        }""", os.environ["PITSTORE_TEST_USER"], test_password())
         try:
             await wait_js(browser, logged_in, timeout=20 if attempt == 1 else 60)
             break

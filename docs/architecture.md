@@ -305,9 +305,15 @@ chosen by the user in the install dialog. The default is
 The catalog ships literal placeholder secrets (verified: `2FAuth` has
 `APP_KEY: SomeRandomStringOf32CharsExactly`). Environment keys matching
 `/(PASS(WORD)?|SECRET|TOKEN|KEY|SALT)$/i` are flagged in the install dialog.
-The helper replaces such values with a random value unless the user enters
-one. These values go to `secrets.env` and the container env, and never to the
-catalog cache, the plan stored for display, logs or helper stderr.
+Implemented as placeholders: the page replaces each flagged literal (and
+every other occurrence of the same literal of 8+ characters, so services and
+URLs that share it stay consistent) and `$DefaultPassword` with
+`@@pitstore-secret:<key>@@`. A key can end in `-<n>` to ask for a length
+(the length of the catalog's example value, 24–64; some apps need an exact
+length). The helper fills them with random alphanumeric values, stores them
+in `secrets.json` (mode 0600) and reuses them on updates. `plan.json` keeps
+the placeholders, never the values; error messages are redacted. The user
+can instead enter their own value in the install dialog.
 
 ## 5. Icons and images
 
@@ -414,8 +420,13 @@ when the user picks it) → Docker (if configured).
 
 * Debian source in `debian/` (debhelper-compat 13, `Architecture: all`),
   installing to `/usr/share/cockpit/pitstore/`.
-  `Depends: cockpit-ws (>= X), cockpit-bridge (>= X)`, `Recommends: podman`,
-  `Suggests: docker.io`. The minimum Cockpit version X is decided in Q1.
+  `Depends: cockpit-ws (>= 300), cockpit-bridge (>= 300), python3:any`,
+  `Recommends: podman`, `Suggests: docker.io`. `python3:any` is required by
+  Debian policy (lintian `python3-script-but-no-python3-dep`) because the
+  helper is a Python script; it never pulls in an extra package, since
+  `cockpit-bridge` 300+ already depends on it.
+* The helper is installed in `/usr/share/cockpit/pitstore/helper/`
+  (root-owned, so a session cannot replace the code that runs as root).
 * No maintainer scripts that start services. Removing the package removes
   only `/usr/share/cockpit/pitstore`. Containers and data of installed apps
   are left alone (documented), and `/var/lib/pitstore` is removed only on
@@ -440,9 +451,25 @@ when the user picks it) → Docker (if configured).
   Podman (rootless and system) and later Docker, `ss -tlnp` before and
   after, then remove the package and check Cockpit again.
 
+### 9.1 Robustness decisions (phase 4)
+
+* The helper writes `plan.json`, `secrets.json` and the confirmation record
+  **before** it creates containers. If the browser goes away mid-install, the
+  app stays known and can be updated (repaired) or removed; on a failure the
+  previous state is restored (update) or removed (install). The helper
+  ignores SIGHUP and a closed stdout so that it finishes its work.
+* Requests carry the expected scope (`user` or `system`); the helper refuses a
+  system request that does not run as root instead of silently using the
+  user's rootless runtime.
+* Rootless Podman: the page enables the user's `podman.socket` and
+  `podman-restart.service` and tries `loginctl enable-linger` so apps keep
+  running after logout and reboot; when lingering cannot be enabled, the UI
+  says so.
+
 ## 10. Open questions (need a decision)
 
-* **Q1 – minimum Cockpit / Python.** The helper needs Python 3. Ubuntu
+* **Q1 – decided:** `cockpit-bridge (>= 300)` plus `python3:any` (see §8). **Q2 – decided:** `yaml` and `ajv` (build time only).
+* **Q1 – minimum Cockpit / Python (original question).** The helper needs Python 3. Ubuntu
   24.04 (`cockpit-bridge` 314, depends on `python3`) is fine. Ubuntu 22.04
   main has Cockpit **264** (C bridge, no python3 dependency), and
   `jammy-backports` has **360**. Proposal: `Depends: cockpit-bridge (>= 300)`,

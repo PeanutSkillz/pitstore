@@ -3,14 +3,17 @@
 """End-to-end test of an app's life cycle through the Appstore UI:
 install, open, stop, start, restart, update and remove.
 
-    lifecycle.py OUTDIR [APP_ID]
+    lifecycle.py OUTDIR [--app APP_ID] [--backend podman-user|podman-system|docker]
 
-Runs as the test user itself (rootless Podman), so it can fake an older
-installed version for the update step by editing its own plan.json.
+For podman-user it runs as the test user itself and fakes an older installed
+version for the update step by editing its own plan.json. The system
+backends need a test admin user with passwordless sudo (throwaway VM only).
 """
 
+import argparse
 import asyncio
 import json
+import subprocess
 import os
 import ssl
 import sys
@@ -19,12 +22,38 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
-from screenshots import BASE, login, run_js, save_shot, wait_js  # noqa: E402
+from screenshots import BASE, login, run_js, save_shot, test_password, wait_js  # noqa: E402
 from webdriver_bidi import ChromiumBidi  # noqa: E402
 
-APP_ID = sys.argv[2] if len(sys.argv) > 2 else "com.icewhale.bentopdf"
+parser = argparse.ArgumentParser()
+parser.add_argument("outdir")
+parser.add_argument("--app", default="com.icewhale.bentopdf")
+parser.add_argument("--backend", default="podman-user", choices=["podman-user", "podman-system", "docker"])
+ARGS = parser.parse_args()
+APP_ID = ARGS.app
 FRAME = "cockpit1:localhost/pitstore/appstore"
-PLAN = Path.home() / ".local/share/pitstore/apps" / APP_ID / "plan.json"
+SYSTEM = ARGS.backend != "podman-user"
+PLAN = (Path("/var/lib/pitstore/apps") if SYSTEM else Path.home() / ".local/share/pitstore/apps") / APP_ID / "plan.json"
+
+
+def read_plan():
+    if SYSTEM:
+        return json.loads(subprocess.run(["sudo", "-n", "cat", str(PLAN)], check=True, capture_output=True).stdout)
+    return json.loads(PLAN.read_text())
+
+
+def write_plan(plan):
+    if SYSTEM:
+        subprocess.run(["sudo", "-n", "tee", str(PLAN)], input=json.dumps(plan).encode(), check=True,
+                       stdout=subprocess.DEVNULL)
+    else:
+        PLAN.write_text(json.dumps(plan))
+
+
+def plan_exists():
+    if SYSTEM:
+        return subprocess.run(["sudo", "-n", "test", "-e", str(PLAN)]).returncode == 0
+    return PLAN.exists()
 
 # click a button by its text in the topmost dialog (or the page)
 CLICK = """(text) => {
@@ -66,6 +95,37 @@ async def open_details(browser):
     await wait_text(browser, "What will run")
 
 
+async def enable_admin(browser):
+    """Switch the session to administrative access, as a user would."""
+    browser.switch_to_top()
+    await wait_js(browser, "() => document.body.innerText.includes('Limited access') || "
+                           "document.body.innerText.includes('Administrative access')")
+    if await run_js(browser, "() => document.body.innerText.includes('Administrative access')"):
+        return
+    await click(browser, "Limited access")
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 60
+    while loop.time() < deadline:
+        if await run_js(browser, "() => document.body.innerText.includes('Administrative access') && "
+                                 "!document.querySelector('.pf-v6-c-modal-box, .pf-v5-c-modal-box')"):
+            return
+        await run_js(browser, """(password) => {
+            const box = document.querySelector('.pf-v6-c-modal-box, .pf-v5-c-modal-box');
+            if (!box) return false;
+            const input = box.querySelector('input[type=password]');
+            if (input && !input.value) {
+                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, password);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            const button = [...box.querySelectorAll('button')]
+                .find(b => ['Authenticate', 'Close'].includes(b.textContent.trim()) && !b.disabled);
+            if (button) button.click();
+            return true;
+        }""", test_password())
+        await asyncio.sleep(1)
+    raise TimeoutError("administrative access could not be enabled")
+
+
 def http_status(url):
     ctx = ssl.create_default_context()
     try:
@@ -78,6 +138,7 @@ def http_status(url):
 async def main(outdir):
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
+    os.environ["PITSTORE_SHOT_DIR"] = str(outdir)
 
     async def shot(name):
         browser.switch_to_top()
@@ -88,15 +149,34 @@ async def main(outdir):
         await browser.bidi("browsingContext.setViewport", context=browser.top_context,
                            viewport={"width": 1280, "height": 900})
         await login(browser)
+        if SYSTEM:
+            await enable_admin(browser)
+            print("ok   administrative access enabled", flush=True)
 
         # install
         await open_details(browser)
         await click(browser, "Install")
         await wait_text(browser, "Run with")
+        await wait_js(browser, "() => !!document.getElementById('pitstore-backend')")
+        await run_js(browser, """(backend) => {
+            const select = document.getElementById('pitstore-backend');
+            if (![...select.options].some(o => o.value === backend))
+                throw new Error('backend not offered: ' + backend);
+            Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, backend);
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+        }""", ARGS.backend)
+        await asyncio.sleep(2)  # form is rebuilt for the backend
         await shot("install-dialog")
         await click(browser, "Install")
-        await wait_text(browser, "Running", timeout=600)
-        print(f"ok   installed {APP_ID}, running", flush=True)
+        await wait_js(browser, """() => document.body.innerText.includes('Running') ||
+            document.body.innerText.includes('Installation failed')""", timeout=600)
+        if await run_js(browser, "() => document.body.innerText.includes('Installation failed')"):
+            message = await run_js(browser, """() => document.querySelector(
+                '.pf-v6-c-modal-box .pf-m-danger .pf-v6-c-alert__description')?.innerText ?? ''""")
+            await shot("install-failed")
+            raise SystemExit(f"FAILED: installation failed: {message}")
+        print(f"ok   installed {APP_ID} with {ARGS.backend}, running", flush=True)
         await shot("installed")
 
         # open: the link must point at the app, and the app must answer
@@ -125,11 +205,13 @@ async def main(outdir):
         print("ok   restarted")
 
         # update: pretend an older version is installed
-        plan = json.loads(PLAN.read_text())
+        plan = read_plan()
+        if plan["backend"] != ARGS.backend.split("-")[0]:
+            raise SystemExit(f"FAILED: installed with {plan['backend']}, expected {ARGS.backend}")
         current_hash = plan["app"]["contentHash"]
         plan["app"]["contentHash"] = "older"
         plan["app"]["version"] = "0.0.1"
-        PLAN.write_text(json.dumps(plan))
+        write_plan(plan)
         await open_details(browser)
         # the button is enabled once the new compose file is loaded and checked
         await wait_js(browser, """() => [...document.querySelectorAll('button')]
@@ -143,7 +225,7 @@ async def main(outdir):
         await wait_js(browser, """() => !document.querySelector('.pitstore-progress') &&
             !document.body.innerText.includes('Run with') && document.body.innerText.includes('Running')""",
                       timeout=600)
-        plan = json.loads(PLAN.read_text())
+        plan = read_plan()
         if plan["app"]["contentHash"] != current_hash:
             raise SystemExit("FAILED: update did not record the catalog version")
         print(f"ok   updated to {plan['app']['version']}")
@@ -155,7 +237,7 @@ async def main(outdir):
         await click(browser, "Remove")
         await wait_js(browser, """() => [...document.querySelectorAll('button')]
             .some(b => b.textContent.trim() === 'Install')""", timeout=120)
-        if PLAN.exists():
+        if plan_exists():
             raise SystemExit("FAILED: app state left behind")
         print("ok   removed")
         await shot("removed")
@@ -167,4 +249,4 @@ async def main(outdir):
 
 
 if __name__ == "__main__":
-    asyncio.run(main(sys.argv[1]))
+    asyncio.run(main(ARGS.outdir))
