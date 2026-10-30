@@ -201,7 +201,7 @@ def do_install(req, rt, progress):
         "composeSha256": sha,
         "findings": [f["key"] for f in verdict["findings"]],
         # under Cockpit's superuser mechanism sudo records the real user
-        "confirmedBy": os.environ.get("SUDO_USER") or pwd.getpwuid(os.getuid()).pw_name,
+        "confirmedBy": (os.environ.get("SUDO_USER") if os.geteuid() == 0 else None) or pwd.getpwuid(os.getuid()).pw_name,
         "confirmedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     }
 

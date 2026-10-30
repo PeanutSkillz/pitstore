@@ -10,8 +10,7 @@ export DEBIAN_FRONTEND=noninteractive
 # login user for Cockpit; the random password is readable by root only
 if ! id pitstore-test >/dev/null 2>&1; then
     useradd -m -s /bin/bash pitstore-test
-    umask 077
-    openssl rand -hex 16 | tr -d '\n' > /root/pitstore-test.pw
+    (umask 077; openssl rand -hex 16 | tr -d '\n' > /root/pitstore-test.pw)
     printf 'pitstore-test:%s\n' "$(cat /root/pitstore-test.pw)" | chpasswd
 fi
 

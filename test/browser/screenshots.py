@@ -54,30 +54,34 @@ async def save_shot(browser, path):
     path.write_bytes(base64.b64decode(shot["data"]))
 
 
+async def login(browser):
+    """Log in to Cockpit with the test credentials from the environment."""
+    await browser.bidi("browsingContext.navigate", context=browser.top_context, url=f"{BASE}/", wait="complete")
+    # login.js attaches its handlers only once the form is shown
+    await wait_js(browser, "() => document.readyState === 'complete' && "
+                           "document.getElementById('login-button')?.offsetParent !== null")
+    logged_in = "() => !!document.querySelector('#host-apps, nav')"
+    for attempt in (1, 2):
+        await run_js(browser, """(user, password) => {
+            document.getElementById('login-user-input').value = user;
+            document.getElementById('login-password-input').value = password;
+            document.getElementById('login-button').click();
+            return true;
+        }""", os.environ["PITSTORE_TEST_USER"], os.environ["PITSTORE_TEST_PASSWORD"])
+        try:
+            await wait_js(browser, logged_in, timeout=20 if attempt == 1 else 60)
+            break
+        except TimeoutError:
+            if attempt == 2:
+                raise
+
+
 async def main(outdir):
     outdir.mkdir(parents=True, exist_ok=True)
     async with ChromiumBidi(headless=True) as browser:
         await browser.bidi("browsingContext.setViewport", context=browser.top_context,
                            viewport={"width": 1280, "height": 900})
-        await browser.bidi("browsingContext.navigate", context=browser.top_context,
-                           url=f"{BASE}/", wait="complete")
-        # login.js attaches its handlers only once the form is shown
-        await wait_js(browser, "() => document.readyState === 'complete' && "
-                               "document.getElementById('login-button')?.offsetParent !== null")
-        logged_in = "() => !!document.querySelector('#host-apps, nav')"
-        for attempt in (1, 2):
-            await run_js(browser, """(user, password) => {
-                document.getElementById('login-user-input').value = user;
-                document.getElementById('login-password-input').value = password;
-                document.getElementById('login-button').click();
-                return true;
-            }""", os.environ["PITSTORE_TEST_USER"], os.environ["PITSTORE_TEST_PASSWORD"])
-            try:
-                await wait_js(browser, logged_in, timeout=20 if attempt == 1 else 60)
-                break
-            except TimeoutError:
-                if attempt == 2:
-                    raise
+        await login(browser)
 
         failures = []
         for page, title in PAGES.items():
