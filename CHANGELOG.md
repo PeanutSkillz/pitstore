@@ -10,7 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Project skeleton based on cockpit-project/starter-kit.
-- Empty Dashboard and Appstore pages in the Cockpit menu.
+- Dashboard and Appstore pages in the Cockpit menu.
+- Dashboard: tiles for installed apps with status, open, start, stop and restart,
+  and a compact system summary (CPU, memory, disk, uptime) linking to Cockpit's pages.
 - Debian packaging (`pitstore`, depends only on `cockpit-ws` and `cockpit-bridge`).
 - CI workflows for lint, typecheck, unit tests, integration tests, `.deb` build,
   npm audit and dependency review.

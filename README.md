@@ -16,8 +16,7 @@ project and is not affiliated with or endorsed by IceWhale Technology.
 Everything else (files, storage, users, networking, logs, metrics) is left to
 Cockpit itself.
 
-> **Status:** early development. The pages are placeholders, and nothing is
-> installable from the catalog yet.
+> **Status:** pre-release (0.1.0). Not yet published; see CHANGELOG.md.
 
 ## Screenshots
 

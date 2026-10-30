@@ -211,10 +211,14 @@ and only paths under the app's own data dir are ever deleted.
   `rel="noopener noreferrer"`.
 * Start / stop / restart: helper verbs → runtime
   `POST /containers/{id}/start|stop|restart` for each container of the app.
-* System summary: `cockpit.metrics` (CPU, memory, `pcp`-less "internal"
-  source as cockpit uses it), `cockpit.file("/proc/uptime")`, and
-  `df` of the data root via the helper (statvfs, no subprocess). Each card
-  links to the matching Cockpit page (`/system`, `/storage`, `/metrics`).
+* System summary: CPU (two `/proc/stat` samples), memory (`/proc/meminfo`,
+  used = total − available), disk usage of `/` (`df -B1 --output=size,used,target /`,
+  fixed argv) and uptime (`/proc/uptime`), read through the bridge as the
+  logged-in user every 5 s while the page is visible. Each card links to the
+  matching Cockpit page (Overview, Storage) instead of duplicating it.
+* App tiles refresh every 10 s while the page is visible and when
+  administrative access changes. Apps on the system Podman and Docker are only
+  listed with administrative access.
 
 ## 4. Translating the x-casaos format
 
