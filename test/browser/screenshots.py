@@ -19,7 +19,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
 from webdriver_bidi import ChromiumBidi  # noqa: E402
 
-BASE = "https://localhost:9090"
+# Cockpit URL; set PITSTORE_TEST_BASE when Cockpit runs with a UrlRoot
+BASE = os.environ.get("PITSTORE_TEST_BASE", "https://localhost:9090").rstrip("/")
 PAGES = {"dashboard": "Dashboard", "appstore": "Appstore"}
 # a catalog app without risky options and one with privileged: true
 CLEAN_APP = "org.icewhale.2fauth"
@@ -71,10 +72,13 @@ async def login(browser):
                            "document.getElementById('login-button')?.offsetParent !== null")
     logged_in = "() => !!document.querySelector('#host-apps, nav')"
     for attempt in (1, 2):
+        # a slow first login must not be retried on the already loaded shell
         await run_js(browser, """(user, password) => {
+            const button = document.getElementById('login-button');
+            if (!button) return false;
             document.getElementById('login-user-input').value = user;
             document.getElementById('login-password-input').value = password;
-            document.getElementById('login-button').click();
+            button.click();
             return true;
         }""", os.environ["PITSTORE_TEST_USER"], test_password())
         try:
