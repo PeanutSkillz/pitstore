@@ -11,6 +11,7 @@ Architecture: all
 Depends: ${misc:Depends},
          cockpit-bridge (>= 300),
          cockpit-ws (>= 300),
+         python3:any,
 Recommends: podman
 Suggests: docker.io
 Description: app dashboard and app store for Cockpit
