@@ -73,7 +73,7 @@ jobs:
           echo "::add-mask::$pw"
           echo "PITSTORE_TEST_PASSWORD=$pw" >> "$GITHUB_ENV"
           echo "PITSTORE_TEST_USER=pitstore-ci" >> "$GITHUB_ENV"
-          sudo useradd -m pitstore-ci
+          sudo useradd -m -s /bin/bash pitstore-ci
           printf 'pitstore-ci:%s\n' "$pw" | sudo chpasswd
       - name: Baseline
         run: python3 -I test/integration/check_install.py baseline /tmp/baseline.json
@@ -85,3 +85,11 @@ jobs:
         run: sudo apt-get remove -y pitstore
       - name: Verify removed
         run: python3 -I test/integration/check_install.py verify /tmp/baseline.json --removed
+      - name: Cockpit and login logs (on failure)
+        if: failure()
+        run: |
+          getent passwd pitstore-ci || true
+          systemctl status cockpit.socket cockpit.service --no-pager || true
+          sudo journalctl --no-pager -n 80 -u cockpit.service -u 'cockpit-wsinstance*' -t cockpit-session -t cockpit-ws || true
+          sudo tail -n 40 /var/log/auth.log || true
+          ls -la /etc/cockpit /etc/pam.d/cockpit /etc/nologin /run/nologin 2>&1 || true
