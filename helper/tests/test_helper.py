@@ -134,10 +134,12 @@ class TestInstall(HelperTestCase):
 
     def test_secrets_are_generated_stored_privately_and_reused_on_update(self):
         comp = compose(environment={"PASSWORD": "@@pitstore-secret:default@@",
+                                    "APP_KEY": "@@pitstore-secret:vabc-32@@",
                                     "URL": "postgres://u:@@pitstore-secret:default@@@db/x"})
         self.install(comp)
         env = self.rt.calls[2][1][0].env
         self.assertRegex(env["PASSWORD"], r"^[A-Za-z0-9]{24}$")
+        self.assertRegex(env["APP_KEY"], r"^[A-Za-z0-9]{32}$")
         self.assertEqual(env["URL"], f"postgres://u:{env['PASSWORD']}@db/x")
         adir = os.path.join(self.tmp.name, "apps", APP["id"])
         self.assertEqual(stat.S_IMODE(os.stat(os.path.join(adir, "secrets.json")).st_mode), 0o600)
@@ -312,15 +314,24 @@ class TestEntryPoint(unittest.TestCase):
         self.assertEqual(self.run_main("list", b"x" * (main.MAX_REQUEST + 1))[0], 1)
         code, out = self.run_main("list", b"[1]")
         self.assertEqual((code, out[0]["type"]), (1, "error"))
-        code, out = self.run_main("frobnicate", b'{"backend": "podman"}')
+        code, out = self.run_main("frobnicate", b'{"backend": "podman", "scope": "user"}')
         self.assertEqual(code, 1)
 
     def test_docker_needs_root(self):
         if os.geteuid() == 0:
             self.skipTest("running as root")
-        code, out = self.run_main("list", b'{"backend": "docker"}')
+        code, out = self.run_main("list", b'{"backend": "docker", "scope": "user"}')
         self.assertEqual(code, 1)
         self.assertIn("administrative access", out[0]["message"])
+
+    def test_system_scope_never_falls_back_to_the_user(self):
+        if os.geteuid() == 0:
+            self.skipTest("running as root")
+        code, out = self.run_main("list", b'{"backend": "podman", "scope": "system"}')
+        self.assertEqual(code, 1)
+        self.assertIn("administrative access", out[0]["message"])
+        code, out = self.run_main("list", b'{"backend": "podman"}')
+        self.assertEqual(code, 1)
 
 
 if __name__ == "__main__":

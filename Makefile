@@ -62,6 +62,9 @@ install-dist:
 	mkdir -p $(DESTDIR)$(PREFIX)/share/cockpit/$(PACKAGE_NAME)
 	cp -r dist/* $(DESTDIR)$(PREFIX)/share/cockpit/$(PACKAGE_NAME)
 	rm -f $(DESTDIR)$(PREFIX)/share/cockpit/$(PACKAGE_NAME)/*.LEGAL.txt
+	mkdir -p $(DESTDIR)$(PREFIX)/share/cockpit/$(PACKAGE_NAME)/helper/pitstore
+	install -m 0755 helper/pitstore-helper $(DESTDIR)$(PREFIX)/share/cockpit/$(PACKAGE_NAME)/helper/
+	install -m 0644 helper/pitstore/*.py $(DESTDIR)$(PREFIX)/share/cockpit/$(PACKAGE_NAME)/helper/pitstore/
 
 # this requires a built source tree and avoids having to install anything system-wide
 devel-install: $(DIST_TEST)

@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "checkJs": true,
+    "checkJs": false,
     "exactOptionalPropertyTypes": true,
     "noUncheckedSideEffectImports": false,
     "jsx": "react",

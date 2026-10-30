@@ -22,13 +22,17 @@ import cockpit from 'cockpit';
 import { AppDetailsModal } from '../components/AppDetailsModal';
 import { AppIcon } from '../components/AppIcon';
 import { SourceSettingsModal } from '../components/SourceSettingsModal';
+import { adminAllowed, dockerAvailable, listInstalled, type InstalledApp } from '../lib/apps';
 import { loadCatalog, type Catalog } from '../lib/catalog/catalog';
+import type { Backend } from '../lib/install';
 import type { CatalogApp } from '../lib/catalog/validate';
 import { loadSettings, type Settings } from '../lib/settings';
 
 const _ = cockpit.gettext;
 
-const AppCard = ({ catalog, app, onOpen }: { catalog: Catalog; app: CatalogApp; onOpen: () => void }) => (
+const AppCard = ({ catalog, app, installed, onOpen }: {
+    catalog: Catalog; app: CatalogApp; installed: InstalledApp | undefined; onOpen: () => void;
+}) => (
     <Card isCompact isClickable className="pitstore-app-card" id={`app-${app.id}`}>
         <CardHeader selectableActions={{ onClickAction: onOpen, selectableActionAriaLabelledby: `app-title-${app.id}` }}>
             <div className="pitstore-app-card-header">
@@ -39,6 +43,7 @@ const AppCard = ({ catalog, app, onOpen }: { catalog: Catalog; app: CatalogApp; 
         <CardBody>
             <Content component="p" className="pitstore-app-card-tagline">{app.tagline}</Content>
             <Label isCompact>{app.category}</Label>
+            {installed && <Label isCompact color="green" className="pitstore-installed">{installed.app.contentHash !== app.contentHash ? _("Update available") : _("Installed")}</Label>}
         </CardBody>
     </Card>
 );
@@ -52,6 +57,22 @@ export const AppstorePage = () => {
     const [category, setCategory] = useState('');
     const [selected, setSelected] = useState<CatalogApp | null>(null);
     const [editSource, setEditSource] = useState(false);
+    const [installed, setInstalled] = useState<InstalledApp[]>([]);
+    const [installedErrors, setInstalledErrors] = useState<string[]>([]);
+
+    const loadInstalled = useCallback(async () => {
+        const [admin, docker] = await Promise.all([adminAllowed(), dockerAvailable()]);
+        const backends: Backend[] = ['podman-user'];
+        if (admin)
+            backends.push('podman-system');
+        if (admin && docker)
+            backends.push('docker');
+        const r = await listInstalled(backends);
+        setInstalled(r.apps);
+        setInstalledErrors(r.errors);
+    }, []);
+
+    useEffect(() => { loadInstalled() }, [loadInstalled]);
 
     const load = useCallback((s: Settings, refresh: boolean) => {
         setLoading(true);
@@ -133,6 +154,7 @@ variant="secondary" isDisabled={!settings || loading}
                         {catalog.staleReason}
                     </Alert>
                 )}
+                {installedErrors.map(e => <Alert key={e} variant="warning" isInline title={_("Installed apps could not be listed")}>{e}</Alert>)}
                 {catalog && catalog.rejected.length > 0 && (
                     <ExpandableSection toggleText={cockpit.format(_("$0 catalog entries were invalid and are hidden"), catalog.rejected.length)}>
                         <ul>
@@ -153,14 +175,21 @@ variant="secondary" isDisabled={!settings || loading}
                 {catalog && visible.length > 0 && (
                     <Gallery hasGutter minWidths={{ default: '240px' }} className="pitstore-gallery">
                         {visible.map(app => (
-                            <AppCard key={app.id} catalog={catalog} app={app} onOpen={() => setSelected(app)} />
+                            <AppCard
+key={app.id} catalog={catalog} app={app} onOpen={() => setSelected(app)}
+                                     installed={installed.find(i => i.id === app.id)}
+                            />
                         ))}
                     </Gallery>
                 )}
             </PageSection>
 
             {catalog && selected && (
-                <AppDetailsModal catalog={catalog} app={selected} onClose={() => setSelected(null)} />
+                <AppDetailsModal
+catalog={catalog} app={selected} onClose={() => setSelected(null)}
+                                 installed={installed.find(i => i.id === selected.id) ?? null}
+                                 onChanged={() => { loadInstalled() }}
+                />
             )}
             {settings && editSource && (
                 <SourceSettingsModal

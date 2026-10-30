@@ -92,7 +92,10 @@ def fill_secrets(compose, stored):
     def repl(m):
         key = m.group(1)
         if key not in values:
-            values[key] = "".join(secrets.choice(SECRET_ALPHABET) for _ in range(24))
+            # "<name>-<length>" asks for a specific length (16..64), default 24
+            m = re.search(r"-([0-9]{1,2})$", key)
+            length = min(64, max(16, int(m.group(1)))) if m else 24
+            values[key] = "".join(secrets.choice(SECRET_ALPHABET) for _ in range(length))
         return values[key]
 
     services = walk_strings(compose["services"], lambda s: SECRET_RE.sub(repl, s))
@@ -323,6 +326,11 @@ def do_get(req):
 def handle(verb, req):
     if verb == "info":
         return {"uid": os.geteuid(), "baseDir": base_dir()}
+    # the page states which scope it expects; never fall back silently from
+    # the system scope (superuser) to the user's own rootless runtime
+    scope = req.get("scope")
+    if scope not in ("user", "system") or (scope == "system") != (os.geteuid() == 0):
+        raise HelperError("administrative access is required" if scope == "system" else "invalid scope")
     backend = req.get("backend")
     if verb == "get":
         return do_get(req)

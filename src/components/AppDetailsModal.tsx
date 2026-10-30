@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert } from '@patternfly/react-core/dist/esm/components/Alert/index.js';
 import { Button } from '@patternfly/react-core/dist/esm/components/Button/index.js';
+import { Checkbox } from '@patternfly/react-core/dist/esm/components/Checkbox/index.js';
 import { Content } from '@patternfly/react-core/dist/esm/components/Content/index.js';
 import {
     DescriptionList, DescriptionListDescription, DescriptionListGroup, DescriptionListTerm,
@@ -16,12 +17,15 @@ import { Title } from '@patternfly/react-core/dist/esm/components/Title/index.js
 
 import cockpit from 'cockpit';
 
+import { appState, appUrl, callHelper, type InstalledApp } from '../lib/apps';
 import { loadCompose, loadImage, loadMeta, type Catalog } from '../lib/catalog/catalog';
 import type { AppMeta, CatalogApp } from '../lib/catalog/validate';
 import { catalogVariables, interpolateCompose } from '../lib/compose/interpolate';
+import type { ComposeFile } from '../lib/compose/parse';
 import { summarizeCompose, type ComposeSummary } from '../lib/compose/summary';
 import { evaluatePolicy, FINDING_WARNINGS, type PolicyResult } from '../lib/policy';
 import { AppIcon } from './AppIcon';
+import { InstallDialog } from './InstallDialog';
 import { Markdown } from './Markdown';
 
 const _ = cockpit.gettext;
@@ -93,11 +97,49 @@ const SecurityReview = ({ policy }: { policy: PolicyResult }) => {
     return <Alert variant="success" isInline title={_("No risky options found")} />;
 };
 
-export const AppDetailsModal = ({ catalog, app, onClose }: {
+const RemoveDialog = ({ app, installed, onClose, onDone }: {
+    app: CatalogApp; installed: InstalledApp; onClose: () => void; onDone: () => void;
+}) => {
+    const [deleteData, setDeleteData] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const remove = () => {
+        setBusy(true);
+        callHelper(installed.backend, 'remove', { appId: app.id, deleteData })
+                .then(onDone)
+                .catch(e => { setError((e as Error).message); setBusy(false) });
+    };
+    return (
+        <Modal isOpen variant="small" onClose={busy ? undefined : onClose} aria-labelledby="pitstore-remove-title">
+            <ModalHeader title={cockpit.format(_("Remove $0?"), app.title)} labelId="pitstore-remove-title" titleIconVariant="warning" />
+            <ModalBody>
+                <p>{_("The app's containers are removed. Its data is kept unless you choose otherwise.")}</p>
+                <Checkbox
+id="pitstore-delete-data" isChecked={deleteData} onChange={(_e, v) => setDeleteData(v)}
+                          label={_("Also delete the app's data")}
+                          description={_("Deletes the app's own data directory and volumes. This cannot be undone.")}
+                />
+                {error && <Alert variant="danger" isInline title={_("Removing failed")}>{error}</Alert>}
+            </ModalBody>
+            <ModalFooter>
+                <Button variant="danger" onClick={remove} isLoading={busy} isDisabled={busy}>{_("Remove")}</Button>
+                <Button variant="link" onClick={onClose} isDisabled={busy}>{_("Cancel")}</Button>
+            </ModalFooter>
+        </Modal>
+    );
+};
+
+export const AppDetailsModal = ({ catalog, app, installed, onClose, onChanged }: {
     catalog: Catalog;
     app: CatalogApp;
+    installed: InstalledApp | null;
     onClose: () => void;
+    onChanged: () => void;
 }) => {
+    const [source, setSource] = useState<{ text: string; compose: ComposeFile } | null>(null);
+    const [dialog, setDialog] = useState<'install' | 'remove' | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
     const [meta, setMeta] = useState<AppMeta | null>(null);
     const [metaError, setMetaError] = useState<string | null>(null);
     const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -109,12 +151,27 @@ export const AppDetailsModal = ({ catalog, app, onClose }: {
                 .then(m => { if (alive) setMeta(m); })
                 .catch(e => { if (alive) setMetaError((e as Error).message); });
         loadCompose(catalog, app)
-                .then(({ compose }) => { if (alive) setAnalysis(analyze(app, compose)); })
+                .then(src => { if (alive) { setSource(src); setAnalysis(analyze(app, src.compose)) } })
                 .catch(e => { if (alive) setComposeError((e as Error).message); });
         return () => { alive = false };
     }, [catalog, app]);
 
     const tips = useMemo(() => Object.values(meta?.tips ?? {}).filter(t => t.trim()), [meta]);
+
+    const lifecycle = (verb: 'start' | 'stop' | 'restart') => {
+        if (!installed)
+            return;
+        setBusy(true);
+        setActionError(null);
+        callHelper(installed.backend, verb, { appId: app.id })
+                .then(onChanged)
+                .catch(e => setActionError((e as Error).message))
+                .finally(() => setBusy(false));
+    };
+    const state = installed ? appState(installed) : null;
+    const url = installed ? appUrl(installed) : null;
+    const updatable = installed !== null && installed.app.contentHash !== app.contentHash;
+    const installable = analysis !== null && analysis.policy.unsupported.length === 0 && source !== null;
 
     return (
         <Modal isOpen variant="large" onClose={onClose} aria-labelledby="pitstore-app-title">
@@ -218,10 +275,45 @@ export const AppDetailsModal = ({ catalog, app, onClose }: {
                 )}
             </ModalBody>
             <ModalFooter>
-                <Button variant="primary" isDisabled>{_("Install")}</Button>
+                {actionError && <Alert variant="danger" isInline title={actionError} />}
+                {!installed && (
+                    <Button variant="primary" isDisabled={!installable} onClick={() => setDialog('install')}>{_("Install")}</Button>
+                )}
+                {installed && (
+                    <>
+                        <Label color={state === 'running' ? 'green' : state === 'partial' ? 'orange' : 'grey'}>
+                            {state === 'running' ? _("Running") : state === 'partial' ? _("Partly running") : _("Stopped")}
+                        </Label>
+                        {url && state === 'running' && (
+                            <Button component="a" href={url} target="_blank" rel="noopener noreferrer" variant="primary">{_("Open")}</Button>
+                        )}
+                        {state === 'running'
+                            ? <Button variant="secondary" isDisabled={busy} onClick={() => lifecycle('stop')}>{_("Stop")}</Button>
+                            : <Button variant="secondary" isDisabled={busy} onClick={() => lifecycle('start')}>{_("Start")}</Button>}
+                        <Button variant="secondary" isDisabled={busy} onClick={() => lifecycle('restart')}>{_("Restart")}</Button>
+                        {updatable && (
+                            <Button variant="secondary" isDisabled={busy || !installable} onClick={() => setDialog('install')}>
+                                {cockpit.format(_("Update to $0"), app.version || _("the latest version"))}
+                            </Button>
+                        )}
+                        <Button variant="danger" isDisabled={busy} onClick={() => setDialog('remove')}>{_("Remove")}</Button>
+                    </>
+                )}
                 <Button variant="link" onClick={onClose}>{_("Close")}</Button>
-                <Content component="small">{_("Installing apps is not available yet in this version of PitStore.")}</Content>
             </ModalFooter>
+            {dialog === 'install' && source && (
+                <InstallDialog
+catalog={catalog} app={app} compose={source.compose} composeText={source.text}
+                               installed={installed} onClose={() => setDialog(null)}
+                               onDone={() => { setDialog(null); onChanged() }}
+                />
+            )}
+            {dialog === 'remove' && installed && (
+                <RemoveDialog
+app={app} installed={installed} onClose={() => setDialog(null)}
+                              onDone={() => { setDialog(null); onChanged() }}
+                />
+            )}
         </Modal>
     );
 };

@@ -60,3 +60,18 @@
 .pitstore-compose-summary {
     margin-block-start: var(--pf-t--global--spacer--md);
 }
+
+.pitstore-installed {
+    margin-inline-start: var(--pf-t--global--spacer--sm);
+}
+
+.pitstore-progress {
+    max-height: 18rem;
+    overflow-y: auto;
+    font-family: var(--pf-t--global--font--family--mono);
+    font-size: var(--pf-t--global--font--size--sm);
+}
+
+.pitstore-confirm {
+    margin-block-start: var(--pf-t--global--spacer--sm);
+}
