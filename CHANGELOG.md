@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-30
+
 ### Added
 
 - Project skeleton based on cockpit-project/starter-kit.
@@ -65,3 +67,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - App metadata with an empty thumbnail or per-language tips is accepted.
 - Page sections had no side padding and cards no border, and wide screens
   kept an empty sidebar column (mismatched PatternFly packages).
+
+[Unreleased]: https://github.com/PeanutSkillz/pitstore/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/PeanutSkillz/pitstore/releases/tag/v0.1.0

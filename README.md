@@ -20,13 +20,13 @@ project and is not affiliated with or endorsed by IceWhale Technology.
 Everything else (files, storage, users, networking, logs, metrics) is left to
 Cockpit itself.
 
-> **Status:** pre-release (0.1.0). Not yet published; see CHANGELOG.md.
+> Source code, releases and issues: <https://github.com/PeanutSkillz/pitstore>.
 
 ## Screenshots
 
-_Placeholder: Dashboard screenshot (`docs/screenshots/dashboard.png`)_
+![Dashboard: installed apps, system summary and other apps on the server](docs/screenshots/dashboard.png)
 
-_Placeholder: Appstore screenshot (`docs/screenshots/appstore.png`)_
+![Appstore: one overview of several catalogs](docs/screenshots/appstore.png)
 
 ## Requirements
 
@@ -44,11 +44,11 @@ PitStore is distributed as a signed APT repository.
 ```sh
 # 1. Add the repository signing key
 sudo install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://OWNER.github.io/pitstore/pitstore.asc \
+curl -fsSL https://peanutskillz.github.io/pitstore/pitstore.asc \
   | sudo tee /etc/apt/keyrings/pitstore.asc > /dev/null
 
 # 2. Add the repository
-echo "deb [signed-by=/etc/apt/keyrings/pitstore.asc] https://OWNER.github.io/pitstore stable main" \
+echo "deb [signed-by=/etc/apt/keyrings/pitstore.asc] https://peanutskillz.github.io/pitstore stable main" \
   | sudo tee /etc/apt/sources.list.d/pitstore.list
 
 # 3. Install
@@ -56,9 +56,9 @@ sudo apt update
 sudo apt install pitstore
 ```
 
-`OWNER` and the key fingerprint are filled in at the first release. Verify the
-fingerprint against the one published in the release notes before you trust
-the key.
+Before you trust the key, check that its fingerprint matches the one in the
+release notes on GitHub:
+`gpg --show-keys /etc/apt/keyrings/pitstore.asc`.
 
 Afterwards, log in to Cockpit (`https://<server>:9090`). **Dashboard** and
 **Appstore** appear in the menu.

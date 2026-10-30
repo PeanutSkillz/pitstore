@@ -5,6 +5,9 @@ Maintainer: PitStore Maintainers <webmaster@rcontentdesign.nl>
 Build-Depends: debhelper-compat (= 13)
 Standards-Version: 4.6.2
 Rules-Requires-Root: no
+Homepage: https://github.com/PeanutSkillz/pitstore
+Vcs-Browser: https://github.com/PeanutSkillz/pitstore
+Vcs-Git: https://github.com/PeanutSkillz/pitstore.git
 
 Package: pitstore
 Architecture: all
