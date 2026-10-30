@@ -11,5 +11,8 @@ override_dh_auto_build:
 
 override_dh_auto_test:
 
+# keep the prebuilt dist/; `make clean` would delete it
+override_dh_auto_clean:
+
 override_dh_auto_install:
 	$(MAKE) install-dist DESTDIR=$(CURDIR)/debian/pitstore PREFIX=/usr
