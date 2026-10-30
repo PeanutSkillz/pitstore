@@ -127,9 +127,16 @@ async def main(outdir):
         await browser.switch_to_frame("cockpit1:localhost/pitstore/appstore")
         await wait_js(browser, "() => document.querySelectorAll('.pitstore-app-card').length > 50", timeout=120)
         count = await run_js(browser, "() => String(document.querySelectorAll('.pitstore-app-card').length)")
-        await wait_js(browser, "() => document.querySelectorAll('img.pitstore-app-icon[src^=\"data:image/\"]').length > 10",
+        # icons load once their card is on screen
+        await wait_js(browser, "() => document.querySelectorAll('img.pitstore-app-icon[src^=\"data:image/\"]').length >= 6",
                       timeout=120)
         print(f"ok   appstore: {count} app cards, icons shown as data: URLs")
+        catalogs = await run_js(browser, """() => [...document.querySelectorAll('#pitstore-source-filter option')]
+            .map(o => o.textContent).join('|')""")
+        expected = "All catalogs|Default catalog|LinuxServer.io apps|Big Bear|Coolstore"
+        if catalogs != expected:
+            raise SystemExit(f"FAILED: catalog filter is {catalogs!r}, expected {expected!r}")
+        print("ok   appstore: one overview of the four known catalogs, with a catalog filter")
         await save_shot(browser, outdir / "appstore-catalog.png")
 
         for app_id, expected in ((CLEAN_APP, "No risky options found"),
@@ -141,6 +148,8 @@ async def main(outdir):
                 return true;
             }""", app_id)
             await wait_js(browser, f"() => document.body.innerText.includes({expected!r})", timeout=60)
+            offers = await run_js(browser, "() => [...document.querySelectorAll('#pitstore-offer option')].length")
+            print(f"     {app_id} is offered by {offers or 1} catalog(s)")
             await asyncio.sleep(2)  # screenshots in the dialog
             print(f"ok   details of {app_id}: '{expected}'")
             await save_shot(browser, outdir / f"details-{app_id}.png")

@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Read-only mounts of `/etc/localtime` and `/etc/timezone` are allowed.
 - Icons and screenshots are validated (magic bytes, size, SVG filter) and shown
   as data: URLs.
+- Appstore: one overview of several catalogs. Four known catalogs in the same
+  format are enabled by default and can be switched off; your own catalogs can
+  be added. An app offered by several catalogs is shown once, and its details
+  let you choose the catalog to install it from. A catalog filter and the
+  catalog name on every card show where an app comes from.
 - Dashboard: a settings button on every app tile shows what the app runs with
   and lets you change its settings (ports, folders, variables) or remove it.
 - Dashboard: other apps on this server (containers PitStore did not install)
@@ -56,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removing a rootless app with its data failed when a container had created
   files as another user (for example a database); errors are reported without
   a traceback.
+- Taglines up to 2000 characters are accepted (some catalogs use long ones).
 - App metadata with an empty thumbnail or per-language tips is accepted.
 - Page sections had no side padding and cards no border, and wide screens
   kept an empty sidebar column (mismatched PatternFly packages).

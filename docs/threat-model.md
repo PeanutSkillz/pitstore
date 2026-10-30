@@ -109,6 +109,7 @@ through the browser. They do not protect against the authenticated admin.
 | Hidden changes in an update (T) | Updates re-run the policy. New findings need new confirmation. A changed compose hash invalidates old confirmations. The UI shows the image/port/mount diff. | Helper test: an update adding `cap_add` is refused without confirmation. |
 | Placeholder secrets in catalog (I) | Secret-like env keys are flagged and replaced with random values. `DefaultPassword` becomes random per app, not the CasaOS default `casaos`. | Unit test for detection. Helper test that `secrets.json` is 0600 and not in the plan echo. |
 | Tracking / privacy (I) | Catalog fetches go from the host, not the browser. No telemetry. Screenshots load only on demand. | – |
+| Several catalogs (T/E) | Every enabled catalog is an untrusted publisher, validated and cached separately; all apps go through the same policy and helper checks whichever catalog they come from. The card and the details dialog name the catalog an offer comes from; installed apps record their catalog URL, so updates come from the same catalog. Duplicate titles are only grouped for display, never treated as the same app id. | Unit tests `merged catalogs`; browser test checks the catalog filter and offers. |
 | Catalog outage (D) | The last good cache is kept, with a clear error state. | Unit test. |
 | Image supply chain (T) | Out of PitStore's control. The UI shows the image reference and highlights references without a tag or with `:latest`. | – (documented residual risk) |
 

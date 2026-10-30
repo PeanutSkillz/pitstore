@@ -8,8 +8,9 @@ web console. PitStore adds two pages to Cockpit:
   remove an app, and a compact system summary. Apps
   that PitStore did not install are listed too, and can be taken over after
   an analysis that shows what could go wrong and how to correct it.
-* **Appstore**: browse, search and filter a catalog of self-hosted apps,
-  read the details, and install, update or remove apps.
+* **Appstore**: browse, search and filter self-hosted apps from one or more
+  catalogs in a single overview, read the details, and install, update or
+  remove apps.
 
 The catalog format is compatible with the
 [CasaOS AppStore](https://github.com/IceWhaleTech/CasaOS-AppStore) (protocol

@@ -109,6 +109,27 @@ export function loadCompose(catalog: Catalog, app: CatalogApp): Promise<{ text: 
     return p;
 }
 
+// at most this many image downloads at a time through the bridge
+const IMAGE_SLOTS = 8;
+let imageSlots = IMAGE_SLOTS;
+const imageWaiting: (() => void)[] = [];
+
+async function withImageSlot<T>(task: () => Promise<T>): Promise<T> {
+    if (imageSlots === 0)
+        await new Promise<void>(resolve => imageWaiting.push(resolve));
+    else
+        imageSlots--;
+    try {
+        return await task();
+    } finally {
+        const next = imageWaiting.shift();
+        if (next)
+            next();
+        else
+            imageSlots++;
+    }
+}
+
 /* Fetch and validate a catalog image; null when it is missing or rejected. */
 export function loadImage(source: SourceUrl, path: string | null): Promise<string | null> {
     if (!path)
@@ -116,7 +137,7 @@ export function loadImage(source: SourceUrl, path: string | null): Promise<strin
     const key = `${source.href}|${path}`;
     let p = imageCache.get(key);
     if (!p) {
-        p = fetchBytes(source, path, MAX_IMAGE_BYTES)
+        p = withImageSlot(() => fetchBytes(source, path, MAX_IMAGE_BYTES))
                 .then(({ bytes, contentType }) => toDataUrl(bytes, detectImage(bytes, contentType)))
                 .catch(e => {
                     console.warn(`pitstore: image ${path} rejected:`, (e as Error).message);

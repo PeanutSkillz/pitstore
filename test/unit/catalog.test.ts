@@ -3,6 +3,7 @@
 import QUnit from 'qunit';
 
 import { checkSvg, detectImage, toDataUrl } from '../../src/lib/catalog/images';
+import { mergeCatalogs } from '../../src/lib/catalog/merge';
 import { appToIndexEntry, CatalogError, parseIndex, parseMeta, parseSourceUrl, parseStore } from '../../src/lib/catalog/validate';
 
 function app(id: string, extra: Record<string, unknown> = {}) {
@@ -164,5 +165,34 @@ QUnit.module('images', () => {
 
     QUnit.test('data URLs', assert => {
         assert.equal(toDataUrl(enc('<svg/>'), 'image/svg+xml'), 'data:image/svg+xml;base64,PHN2Zy8+');
+    });
+});
+
+QUnit.module('merged catalogs', () => {
+    const entry = (id: string, title: string) => parseIndex({ version: 2, apps: [app(id, { title })] }).apps[0];
+    const official = { name: 'a', apps: [entry('com.a.adguard', 'AdGuard Home'), entry('com.a.only', 'Only A')] };
+    const bear = { name: 'b', apps: [entry('com.b.adguard-home', 'Adguard-Home'), entry('com.b.only', 'Only B')] };
+
+    QUnit.test('the same app from two catalogs is one listing, first catalog shown', assert => {
+        const listings = mergeCatalogs([official, bear], new Set());
+        assert.deepEqual(listings.map(l => l.primary.app.id), ['com.a.adguard', 'com.a.only', 'com.b.only']);
+        assert.deepEqual(listings[0].offers.map(o => o.catalog.name), ['a', 'b']);
+    });
+
+    QUnit.test('an installed offer is shown instead of the first one', assert => {
+        const listings = mergeCatalogs([official, bear], new Set(['com.b.adguard-home']));
+        assert.equal(listings[0].primary.app.id, 'com.b.adguard-home');
+        assert.equal(listings[0].primary.catalog.name, 'b');
+    });
+
+    QUnit.test('a note in parentheses after the title is ignored', assert => {
+        const ls = { name: 'l', apps: [entry('com.l.adguard', 'AdGuard Home (LinuxServer.io)')] };
+        assert.equal(mergeCatalogs([official, ls], new Set())[0].offers.length, 2);
+    });
+
+    QUnit.test('two entries with one title in the same catalog stay separate', assert => {
+        const twice = { name: 'c', apps: [entry('com.c.one', 'Same'), entry('com.c.two', 'Same')] };
+        const listings = mergeCatalogs([twice], new Set());
+        assert.equal(listings.length, 2);
     });
 });

@@ -132,7 +132,7 @@ open question Q1.
 | Data | Rootless Podman | System Podman / Docker | Contents |
 |---|---|---|---|
 | Catalog cache | `~/.cache/pitstore/catalog/` | same (per Cockpit user) | `index.json`, `store.json`, per-app `meta.json` + compose, keyed by `content_hash` |
-| Settings | `~/.config/pitstore/settings.json` | same | store URL, preferred backend, locale |
+| Settings | `~/.config/pitstore/settings.json` | same | enabled catalog URLs in priority order |
 | App state | `~/.local/share/pitstore/apps/podman/<id>/` | `/var/lib/pitstore/apps/<podman|docker>/<id>/` (per backend: both run as root) | `plan.json` (the applied plan), `confirmations.json`, `secrets.json` (mode 0600) |
 | App data | `~/.local/share/pitstore/data/<id>/` | `/var/lib/pitstore/data/<id>/` (configurable data root) | bind-mount sources |
 
@@ -148,10 +148,22 @@ the container names per service and the helper finds them by name.
 
 ### 3.1 Catalog refresh (Appstore page)
 
-1. Read settings: `store_url`, default
-   `https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages`
-   (verified: serves `index.json` 120 896 bytes, 180 apps, `version: 2`,
-   on 2026-10-29). Only `https://` URLs are accepted.
+1. Read settings: `sources`, the enabled catalog URLs in priority order
+   (at most 10). Only `https://` URLs are accepted. By default the four known
+   catalogs in this format are enabled (verified 2026-10-30: `store.json` and
+   `index.json` with `version: 2`, all entries valid with PitStore's schemas
+   except 7 LinuxServer taglines before the limit was raised to 2000 chars):
+
+   | Catalog | URL (`https://cdn.jsdelivr.net/gh/…@gh-pages`) | Apps | License |
+   |---|---|---|---|
+   | Default | `IceWhaleTech/CasaOS-AppStore` | 180 | Apache-2.0 |
+   | LinuxServer.io apps | `WisdomSky/LinuxServer-AppStore` | 249 | GPL-3.0 |
+   | Big Bear | `bigbeartechworld/big-bear-casaos` | 243 | MIT |
+   | Coolstore | `WisdomSky/CasaOS-Coolstore` | 62 | none stated |
+
+   Users can switch them off and add their own. Each catalog is loaded,
+   validated and cached on its own (steps 2–5); one failing catalog does not
+   hide the others.
 2. `cockpit.http({address, port: 443, tls: {}})` with system CA
    validation (bridge uses `ssl.create_default_context()`). GET
    `store.json` and `index.json`, with size limits (index ≤ 4 MiB) and
@@ -167,6 +179,16 @@ the container names per service and the helper finds them by name.
    presses Install or Update.
 5. Write the cache through `cockpit.file(..., {syntax: JSON}).replace()`.
    The cache contains catalog data only: no user input and no secrets.
+
+Merged overview: app ids never collide between these catalogs (each uses its
+own namespace), but about 100 apps are offered by more than one. Entries are
+grouped by their title (case, punctuation and a trailing note in parentheses
+ignored, for example "(LinuxServer.io)"); a catalog never merges two of its
+own entries. A group is one card showing the installed offer, else the one
+from the first catalog; the details dialog lets the user pick another
+catalog's offer, because offers differ in images and permissions. A catalog
+filter shows one catalog's offers only. Icons load when their card scrolls
+into view, at most 8 downloads at a time through the bridge.
 
 ### 3.2 Install
 

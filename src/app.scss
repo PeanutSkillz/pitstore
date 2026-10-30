@@ -111,3 +111,24 @@
     font-size: var(--pf-t--global--font--size--lg);
     white-space: nowrap;
 }
+
+.pitstore-app-source {
+    display: block;
+    margin-block-start: var(--pf-t--global--spacer--xs);
+    color: var(--pf-t--global--text--color--subtle);
+}
+
+.pitstore-offer-choice {
+    display: flex;
+    white-space: nowrap;
+    gap: var(--pf-t--global--spacer--sm);
+    align-items: center;
+    max-inline-size: 28rem;
+    margin-block-start: var(--pf-t--global--spacer--md);
+}
+
+.pitstore-custom-source {
+    display: flex;
+    gap: var(--pf-t--global--spacer--sm);
+    align-items: center;
+}

@@ -8,6 +8,7 @@ import { Content } from '@patternfly/react-core/dist/esm/components/Content/inde
 import {
     DescriptionList, DescriptionListDescription, DescriptionListGroup, DescriptionListTerm,
 } from '@patternfly/react-core/dist/esm/components/DescriptionList/index.js';
+import { FormSelect, FormSelectOption } from '@patternfly/react-core/dist/esm/components/FormSelect/index.js';
 import { Label } from '@patternfly/react-core/dist/esm/components/Label/index.js';
 import { List, ListItem } from '@patternfly/react-core/dist/esm/components/List/index.js';
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@patternfly/react-core/dist/esm/components/Modal/index.js';
@@ -128,10 +129,19 @@ id="pitstore-delete-data" isChecked={deleteData} onChange={(_e, v) => setDeleteD
     );
 };
 
-export const AppDetailsModal = ({ catalog, app, installed, onClose, onChanged }: {
+// the same app offered by several catalogs: pick the one to show and install
+export interface OfferChoice {
+    names: string[];
+    current: number;
+    installed: boolean[];
+    onSelect: (index: number) => void;
+}
+
+export const AppDetailsModal = ({ catalog, app, installed, offers, onClose, onChanged }: {
     catalog: Catalog;
     app: CatalogApp;
     installed: InstalledApp | null;
+    offers?: OfferChoice | undefined;
     onClose: () => void;
     onChanged: () => void;
 }) => {
@@ -185,6 +195,22 @@ export const AppDetailsModal = ({ catalog, app, installed, onClose, onChanged }:
                         <div><Label isCompact>{app.category}</Label></div>
                     </div>
                 </div>
+                {offers && (
+                    <div className="pitstore-offer-choice">
+                        <label htmlFor="pitstore-offer">{_("From catalog")}</label>
+                        <FormSelect
+                            id="pitstore-offer" value={String(offers.current)}
+                            onChange={(_e, v) => offers.onSelect(Number(v))}
+                        >
+                            {offers.names.map((n, i) => (
+                                <FormSelectOption
+                                    key={i} value={String(i)}
+                                    label={offers.installed[i] ? cockpit.format(_("$0 (installed)"), n) : n}
+                                />
+                            ))}
+                        </FormSelect>
+                    </div>
+                )}
             </ModalHeader>
             <ModalBody>
                 {app.tagline && <Content component="p" className="pitstore-tagline">{app.tagline}</Content>}
