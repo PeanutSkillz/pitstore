@@ -30,12 +30,20 @@ Cockpit itself.
 
 ## Requirements
 
-* Ubuntu Server 22.04 LTS or 24.04 LTS.
-* Cockpit 300 or newer (`cockpit-ws` and `cockpit-bridge`):
+* A Debian or Ubuntu based system with Cockpit 300 or newer (`cockpit-ws` and
+  `cockpit-bridge`). The APT repository below serves a `.deb` for this family.
+  Tested on Ubuntu 24.04 LTS (full test) and 22.04 LTS (install and remove):
   * Ubuntu 24.04: the version in the main archive (314) is fine.
   * Ubuntu 22.04: the main archive has 264, which is too old. Install Cockpit from
     `jammy-backports`: `sudo apt install -t jammy-backports cockpit`.
 * Podman (recommended) or Docker to run apps.
+
+**Other systemd-based distributions** (Fedora, RHEL, Arch, …) should work in
+principle, since PitStore only needs Cockpit 300+, Python 3 and Podman or
+Docker, but there is no package for them yet and they are not tested. You can
+install from source with `make && sudo make install`. On systems with SELinux
+enforcing, apps that use folders on the server do not work yet, because
+PitStore does not relabel bind mounts.
 
 ## Installation (APT)
 
