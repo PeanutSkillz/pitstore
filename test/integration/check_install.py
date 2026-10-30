@@ -37,6 +37,10 @@ DEFAULT_CSP = {
     "font-src": "'self' data:",
     "img-src": "'self' data:",
 }
+# cockpit-ws adds the origin of its own WebSocket to connect-src on every page
+WS_CONNECT_SRC = f"wss://{COCKPIT_HOST}:{COCKPIT_PORT} 'self'"
+# a built-in Cockpit page whose manifest has no CSP override, as a live reference
+REFERENCE_PAGE = "users/index"
 
 
 class Cockpit:
@@ -160,10 +164,17 @@ def main():
             headers = check_page(cockpit, page, failures)
             if headers is None:
                 continue
-            csp = parse_csp(headers.get("content-security-policy", ""))
+            raw_csp = headers.get("content-security-policy", "")
+            csp = parse_csp(raw_csp)
             for key, value in DEFAULT_CSP.items():
-                if csp.get(key) != value:
+                allowed = {value, WS_CONNECT_SRC} if key == "connect-src" else {value}
+                if csp.get(key) not in allowed:
                     failures.append(f"{page}: CSP {key} is {csp.get(key)!r}, expected {value!r}")
+            if set(csp) - set(DEFAULT_CSP) - {"block-all-mixed-content"}:
+                failures.append(f"{page}: CSP has extra directives: {sorted(set(csp) - set(DEFAULT_CSP))}")
+            reference = check_page(cockpit, REFERENCE_PAGE, failures)
+            if reference is not None and reference.get("content-security-policy") != raw_csp:
+                failures.append(f"{page}: CSP differs from {REFERENCE_PAGE}: {raw_csp!r}")
             if any("unsafe" in v or "*" in v for v in csp.values()):
                 failures.append(f"{page}: CSP contains unsafe or wildcard sources: {csp}")
             print(f"ok   {page} ({label}), CSP matches the Cockpit default")
