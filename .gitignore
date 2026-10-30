@@ -1,0 +1,24 @@
+# general patterns
+*.pyc
+__pycache__/
+
+# toplevel (/...)
+/dist/
+/metafile.json
+/node_modules/
+/pkg/
+/runtime-npm-modules.txt
+/tools/
+/tmp/
+/sbom.*.json
+
+# Debian build output
+/debian/.debhelper/
+/debian/debhelper-build-stamp
+/debian/files
+/debian/pitstore/
+/debian/pitstore.substvars
+/debian/*.debhelper.log
+
+# subdirs (/subdir/...)
+/test/common/

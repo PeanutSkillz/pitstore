@@ -1,0 +1,15 @@
+#!/usr/bin/make -f
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+%:
+	dh $@
+
+# dist/ is built beforehand with `make` (needs node and network);
+# the package build itself only installs it
+override_dh_auto_build:
+	test -f dist/manifest.json
+
+override_dh_auto_test:
+
+override_dh_auto_install:
+	$(MAKE) install-dist DESTDIR=$(CURDIR)/debian/pitstore PREFIX=/usr

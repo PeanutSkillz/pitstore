@@ -1,0 +1,23 @@
+Source: pitstore
+Section: admin
+Priority: optional
+Maintainer: PitStore Maintainers <webmaster@rcontentdesign.nl>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: pitstore
+Architecture: all
+Depends: ${misc:Depends},
+         cockpit-bridge (>= 300),
+         cockpit-ws (>= 300),
+Recommends: podman
+Suggests: docker.io
+Description: app dashboard and app store for Cockpit
+ PitStore adds two pages to the Cockpit web console: a dashboard with
+ tiles for installed container apps, and an app store that reads catalogs
+ in the CasaOS AppStore format.
+ .
+ Apps run on Podman (rootless by default) or optionally on Docker. All
+ access goes through the Cockpit session; PitStore runs no daemon and
+ opens no network port.

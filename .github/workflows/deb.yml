@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+name: deb
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Fetch pinned Cockpit pkg/lib
+        run: make pkg/lib/cockpit-po-plugin.js
+      - name: Install dependencies from lockfile
+        run: npm ci --ignore-scripts
+      - name: Install Debian build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends debhelper lintian
+      - name: Build .deb and run lintian
+        run: make deb
+      - name: Collect package
+        run: mkdir -p out && mv ../pitstore_*_all.deb out/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: deb
+          path: out/*.deb
+          if-no-files-found: error
+
+  integration:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            cockpit: cockpit
+          - os: ubuntu-22.04
+            # Cockpit 264 in jammy is too old; backports has >= 300
+            cockpit: cockpit/jammy-backports
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: deb
+          path: out
+      - name: Install Cockpit
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.cockpit }}
+          sudo systemctl enable --now cockpit.socket
+      - name: Create a throwaway login user
+        run: |
+          pw=$(openssl rand -hex 16)
+          echo "::add-mask::$pw"
+          echo "PITSTORE_TEST_PASSWORD=$pw" >> "$GITHUB_ENV"
+          echo "PITSTORE_TEST_USER=pitstore-ci" >> "$GITHUB_ENV"
+          sudo useradd -m pitstore-ci
+          printf 'pitstore-ci:%s\n' "$pw" | sudo chpasswd
+      - name: Baseline
+        run: python3 -I test/integration/check_install.py baseline /tmp/baseline.json
+      - name: Install package
+        run: sudo apt-get install -y ./out/pitstore_*_all.deb
+      - name: Verify installed
+        run: python3 -I test/integration/check_install.py verify /tmp/baseline.json --installed
+      - name: Remove package
+        run: sudo apt-get remove -y pitstore
+      - name: Verify removed
+        run: python3 -I test/integration/check_install.py verify /tmp/baseline.json --removed

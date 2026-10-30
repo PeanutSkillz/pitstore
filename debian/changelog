@@ -1,0 +1,5 @@
+pitstore (0.1.0) unstable; urgency=medium
+
+  * Initial skeleton: empty Dashboard and Appstore pages.
+
+ -- PitStore Maintainers <webmaster@rcontentdesign.nl>  Thu, 29 Oct 2026 23:05:28 +0100

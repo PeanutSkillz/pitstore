@@ -1,0 +1,26 @@
+{
+    "requires": {
+        "cockpit": "300"
+    },
+
+    "menu": {
+        "dashboard": {
+            "label": "Dashboard",
+            "order": 5,
+            "keywords": [
+                {
+                    "matches": ["apps", "containers", "pitstore"]
+                }
+            ]
+        },
+        "appstore": {
+            "label": "Appstore",
+            "order": 6,
+            "keywords": [
+                {
+                    "matches": ["apps", "store", "install", "catalog", "pitstore"]
+                }
+            ]
+        }
+    }
+}
