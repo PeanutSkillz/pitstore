@@ -24,7 +24,7 @@ import socket
 import string
 import sys
 
-from . import policy
+from . import adopt, policy
 from .runtime import RuntimeError_, open_runtime
 from .translate import LABEL_APP, LABEL_SERVICE, ValidationError, check_app_id, translate
 
@@ -149,6 +149,37 @@ def prepare_bind(source, app_id):
 
 def app_containers(rt, app_id):
     return [c for c in rt.list_containers(app_id) if c["labels"].get(LABEL_APP) == app_id]
+
+
+def adopted_in_place(plan):
+    a = (plan or {}).get("adopted") or {}
+    return a if a.get("mode") == "in-place" else None
+
+
+def adopted_names(rt):
+    """Names of containers adopted in place, which carry no PitStore labels."""
+    names = set()
+    root = os.path.join(base_dir(), "apps", rt.name)
+    for app_id in os.listdir(root) if os.path.isdir(root) else []:
+        a = adopted_in_place(read_json(os.path.join(root, app_id, "plan.json")))
+        if a:
+            names.update(a["containers"].values())
+    return names
+
+
+def plan_containers(rt, app_id, plan):
+    """Containers of an app keyed by service: labelled ones, or the adopted ones by name."""
+    a = adopted_in_place(plan)
+    if not a:
+        return {c["labels"].get(LABEL_SERVICE): c for c in app_containers(rt, app_id)}
+    by_name = {(c.get("Names") or [""])[0].lstrip("/"): c for c in rt.list_all()}
+    out = {}
+    for service, name in a["containers"].items():
+        c = by_name.get(name)
+        if c:
+            out[service] = {"id": c["Id"], "name": name, "state": c.get("State", ""), "status": c.get("Status", ""),
+                            "image": c.get("Image", ""), "labels": c.get("Labels") or {}}
+    return out
 
 
 def redact(message, values):
@@ -283,7 +314,7 @@ def do_install(req, rt, progress):
 def do_lifecycle(req, rt, action):
     app_id = check_app_id(req.get("appId"))
     plan = read_json(os.path.join(app_dir(app_id, rt.name), "plan.json"), {})
-    containers = {c["labels"].get(LABEL_SERVICE): c for c in app_containers(rt, app_id)}
+    containers = plan_containers(rt, app_id, plan)
     if not containers:
         raise HelperError(f"{app_id} has no containers")
     order = [s for s in plan.get("order", []) if s in containers] or sorted(containers)
@@ -297,6 +328,8 @@ def do_lifecycle(req, rt, action):
 
 def do_remove(req, rt, progress):
     app_id = check_app_id(req.get("appId"))
+    if adopted_in_place(read_json(os.path.join(app_dir(app_id, rt.name), "plan.json"))):
+        raise HelperError("this app was taken over as it is; release it instead of removing it")
     for c in reversed(app_containers(rt, app_id)):
         progress(f"Removing {c['name']}")
         rt.remove_container(c["id"])
@@ -338,6 +371,12 @@ def do_list(rt):
             entry = apps.setdefault(app_id, {"id": app_id, "containers": []})
             entry["app"] = plan.get("app", {})
             entry["installedAt"] = plan.get("installedAt")
+            if plan.get("adopted"):
+                entry["adopted"] = plan["adopted"].get("mode")
+            if adopted_in_place(plan):
+                entry["containers"] = [{"name": c["name"], "state": c["state"], "status": c["status"],
+                                        "image": c["image"], "service": svc}
+                                       for svc, c in plan_containers(rt, app_id, plan).items()]
     return {"backend": rt.name, "apps": sorted(apps.values(), key=lambda a: a["id"])}
 
 
@@ -347,6 +386,45 @@ def do_get(req):
     if not plan:
         raise HelperError(f"{app_id} is not installed")
     return {"plan": plan, "dataDir": data_dir(app_id)}
+
+
+def do_adopt(req, rt, progress):
+    app_id = check_app_id(req.get("appId"))
+    title = req.get("title")
+    if not isinstance(title, str) or not title.strip() or len(title) > 200 or "\0" in title:
+        raise HelperError("invalid title")
+    for backend in BACKENDS:
+        if os.path.exists(os.path.join(app_dir(app_id, backend), "plan.json")):
+            raise HelperError(f"an app with the id {app_id} already exists")
+    rootless = os.geteuid() != 0 and rt.name == "podman"
+    extra, confirmed, digest = adopt.adopt(rt, req, adopted_names(rt), progress, check_port_free, prepare_bind, rootless)
+    adir = app_dir(app_id, rt.name)
+    os.makedirs(adir, mode=0o700, exist_ok=True)
+    stamp = adopt.now()
+    if confirmed:
+        write_json(os.path.join(adir, "confirmations.json"), [{
+            "composeSha256": digest, "findings": confirmed,
+            "confirmedBy": (os.environ.get("SUDO_USER") if os.geteuid() == 0 else None) or pwd.getpwuid(os.getuid()).pw_name,
+            "confirmedAt": stamp, "takeover": True}])
+    write_json(os.path.join(adir, "plan.json"), {
+        "app": {"id": app_id, "title": title.strip()},
+        "backend": rt.name,
+        "adopted": extra,
+        "order": extra["order"],
+        "ports": extra.get("ports", []),
+        "composeSha256": digest,
+        "installedAt": stamp,
+    })
+    return {"app": app_id, "mode": extra["mode"]}
+
+
+def do_release(req, rt):
+    app_id = check_app_id(req.get("appId"))
+    adir = app_dir(app_id, rt.name)
+    if not adopted_in_place(read_json(os.path.join(adir, "plan.json"))):
+        raise HelperError("only apps taken over as they are can be released")
+    shutil.rmtree(adir)
+    return {"app": app_id, "released": True}
 
 
 def handle(verb, req):
@@ -371,6 +449,15 @@ def handle(verb, req):
         return do_install(req, rt, progress) if verb == "install" else do_remove(req, rt, progress)
     if verb in ("start", "stop", "restart"):
         return do_lifecycle(req, rt, verb)
+    if verb == "foreign":
+        return {"backend": rt.name, "groups": adopt.list_foreign(rt, adopted_names(rt))}
+    if verb == "analyze":
+        analysis, _compose, _containers = adopt.analyze(rt, req.get("group"), adopted_names(rt))
+        return {"backend": rt.name, "analysis": analysis}
+    if verb == "adopt":
+        return do_adopt(req, rt, lambda m: emit({"type": "progress", "message": m}))
+    if verb == "release":
+        return do_release(req, rt)
     raise HelperError(f"unknown verb {verb!r}")
 
 
@@ -390,7 +477,7 @@ def main(argv):
         if not isinstance(req, dict):
             raise ValueError("request must be an object")
         result = handle(argv[1], req)
-    except (HelperError, ValidationError, RuntimeError_, ValueError) as e:
+    except (HelperError, ValidationError, RuntimeError_, ValueError, adopt.AdoptError) as e:
         emit({"type": "error", "message": str(e)})
         return 1
     emit({"type": "result", **result})

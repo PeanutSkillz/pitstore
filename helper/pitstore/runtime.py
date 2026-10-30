@@ -100,11 +100,29 @@ def _labels_filter(app_id=None):
     return json.dumps({"label": [label]})
 
 
-class PodmanRuntime:
+class _CompatMixin:
+    # --- Docker-format access shared by both backends (adoption) -----------
+
+    def list_all(self):
+        """All containers in Docker list format, including ones PitStore did not create."""
+        _, result = self.compat.request("GET", "/containers/json", {"all": "true"})
+        return result or []
+
+    def inspect(self, cid):
+        _, result = self.compat.request("GET", f"/containers/{seg(cid)}/json")
+        return result
+
+    def rename(self, cid, name):
+        self.compat.request("POST", f"/containers/{seg(cid)}/rename", {"name": name})
+
+
+class PodmanRuntime(_CompatMixin):
     name = "podman"
 
     def __init__(self, socket_path):
         self.client = Client(socket_path, "/v4.0.0/libpod")
+        # Docker-compatible API: same inspect/list format as Docker (used for adoption)
+        self.compat = Client(socket_path, "/v4.0.0")
 
     def ping(self):
         _, info = self.client.request("GET", "/version")
@@ -284,7 +302,7 @@ class PodmanRuntime:
         return [n["name"] for n in result or []]
 
 
-class DockerRuntime:
+class DockerRuntime(_CompatMixin):
     name = "docker"
     # oldest Engine API this code is written against (Docker 25)
     MIN_API = (1, 44)
@@ -297,6 +315,7 @@ class DockerRuntime:
         if not m or (int(m.group(1)), int(m.group(2))) < self.MIN_API:
             raise RuntimeError_(f"Docker API version {version or 'unknown'} is not supported (1.44 or newer is needed)")
         self.client = Client(socket_path, f"/v{version}")
+        self.compat = self.client
 
     def ping(self):
         _, info = self.client.request("GET", "/version")

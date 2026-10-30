@@ -313,9 +313,12 @@ def _topo_order(services):
     return order
 
 
-def translate(compose, app_id, version, rootless, confirmed=()):
+def translate(compose, app_id, version, rootless, confirmed=(), keep_volume_names=False):
     """Return an AppSpec. Raises ValidationError for anything that is not
-    allowed: unsupported keys, unconfirmed policy findings, bad values."""
+    allowed: unsupported keys, unconfirmed policy findings, bad values.
+
+    keep_volume_names: use named volumes under their own names instead of
+    "pitstore-<app>-<name>" (adoption must reuse the existing volumes)."""
     check_app_id(app_id)
     verdict = policy.evaluate(compose)
     if verdict["unsupported"]:
@@ -372,7 +375,7 @@ def translate(compose, app_id, version, rootless, confirmed=()):
             elif kind == "volume":
                 if source and source not in named_volumes:
                     _fail(f"{p}.volumes", f"volume {source!r} is not declared at the top level")
-                name = f"pitstore-{app_id}-{source}" if source else ""
+                name = (source if keep_volume_names else f"pitstore-{app_id}-{source}") if source else ""
                 spec.mounts.append(Mount("volume", name, target, read_only))
             else:
                 spec.mounts.append(Mount("tmpfs", "", target, False))
